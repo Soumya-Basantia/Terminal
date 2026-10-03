@@ -1,0 +1,12 @@
+{
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.3",
+    "prisma": "^5.22.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "axios": "^1.20.0",
+    "socket.io-client": "^4.8.4"
+  }
+}

@@ -1,0 +1,578 @@
+// TERMINAL — Campus Game Platform
+// Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
+
+enum UserRole {
+  PLAYER
+  GAME_MASTER
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  BLOCKED
+  REJECTED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWING
+  RESOLVED
+  REJECTED
+}
+
+enum ClubRole {
+  ADMIN
+  MEMBER
+}
+
+enum ClubStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TeamMemberRole {
+  LEADER
+  MEMBER
+}
+
+enum GameTemplate {
+  QUIZ
+  RAPID_FIRE
+  MATCH
+  ARRANGE
+  TEXT_INPUT
+  CHAIN_REACTION
+  TREASURE_HUNT
+  BUG_HUNT
+  TEAM_CHALLENGE
+  PACKET_RELAY
+  PROMPT_BATTLE
+  DATA_HUNT
+  LOGIC_HEIST
+  THE_WITNESS
+  ROGUE_SCANNER
+  SILENT_MISSION
+  SIGNAL_ROUTER
+  THE_THRESHOLD
+}
+
+enum GameStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LeaderboardVisibility {
+  HIDDEN
+  LIVE
+  FINAL
+}
+
+enum ChallengeType {
+  CHOICE
+  SINGLE_CHOICE
+  MULTI_CHOICE
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  FILTER
+  MULTI_FILTER
+  SORT
+  LIMIT
+  FIELD_IDENTIFICATION
+  RECORD_IDENTIFICATION
+  VARIABLE_SIMULATION
+  LOOP_SIMULATION
+  BLOCK_CONSTRUCTION
+  DECISION
+  RESOURCE_SELECTION
+  TOOL_SELECTION
+  PREDICTION
+  CONSEQUENCE
+  CODE_REVEAL
+  NARRATIVE_CLUE
+  INTERROGATION
+  TELEMETRY_ANOMALY
+  MISSION_PLAN
+  NETWORK_ROUTING
+  THRESHOLD_CALIBRATION
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum SessionState {
+  LOBBY
+  STARTING
+  QUESTION_ACTIVE
+  QUESTION_END
+  LEADERBOARD
+  FINAL_RESULTS
+}
+
+enum PlayerStatus {
+  ACTIVE
+  DISCONNECTED
+  BANNED
+}
+
+enum PollStatus {
+  ACTIVE
+  CLOSED
+}
+
+// ─────────────────────────────────────────
+// AUTH & IDENTITY
+// ─────────────────────────────────────────
+
+model User {
+  id             String          @id @default(cuid())
+  username       String          @unique
+  email          String          @unique
+  passwordHash   String
+  role           UserRole        @default(PLAYER)
+  approvalStatus ApprovalStatus  @default(APPROVED)
+  accountStatus  AccountStatus   @default(ACTIVE)
+  isVerified     Boolean         @default(false)
+  lastLogin      DateTime?
+  lastActivity   DateTime?
+  name           String?
+  usn            String?         @unique
+  branch         String?
+  section        String?
+  phoneNumber    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  profile          Profile?
+  teamMemberships  TeamMember[]
+  createdTeams     Team[]          @relation("TeamCreator")
+  games            Game[]
+  events           Event[]
+  sessionPlayers   SessionPlayer[]
+  ClubMember       ClubMember[]
+  sentMessages     Message[]       @relation("SentMessages")
+  receivedMessages Message[]       @relation("ReceivedMessages")
+  filedReports     Report[]        @relation("FiledReports")
+  reportedReports  Report[]        @relation("ReportedUser")
+  handledReports   Report[]        @relation("HandledReports")
+  auditLogs        AuditLog[]      @relation("AdminAuditLogs")
+
+  @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String
+  totalScore  Int      @default(0)
+  gamesPlayed Int      @default(0)
+  gamesWon    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+// ─────────────────────────────────────────
+// CLUBS
+// ─────────────────────────────────────────
+
+model Club {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  slug        String     @unique
+  description String?
+  focus       String?
+  logo        String?
+  theme       Json?
+  status      ClubStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  members ClubMember[]
+  games   Game[]
+  events  Event[]
+
+  @@map("clubs")
+}
+
+model ClubMember {
+  id       String   @id @default(cuid())
+  clubId   String
+  userId   String
+  role     ClubRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clubId, userId])
+  @@map("club_members")
+}
+
+// ─────────────────────────────────────────
+// TEAMS
+// ─────────────────────────────────────────
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creator        User            @relation("TeamCreator", fields: [createdBy], references: [id])
+  members        TeamMember[]
+  sessionPlayers SessionPlayer[]
+  Submission     Submission[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id       String         @id @default(cuid())
+  teamId   String
+  userId   String
+  role     TeamMemberRole @default(MEMBER)
+  joinedAt DateTime       @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+// ─────────────────────────────────────────
+// GAME (reusable template)
+// ─────────────────────────────────────────
+
+model Game {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  template    GameTemplate @default(QUIZ)
+  status      GameStatus   @default(DRAFT)
+
+  // Participation settings
+  maxPlayers      Int     @default(200)
+  teamsEnabled    Boolean @default(false)
+  maxTeamSize     Int     @default(5)
+  allowLateJoin   Boolean @default(true)
+  allowSpectators Boolean @default(false)
+
+  // Gameplay settings
+  leaderboardVisibility LeaderboardVisibility @default(LIVE)
+  allowAnswerChange     Boolean               @default(false)
+  negativeMarking       Boolean               @default(false)
+  speedBonus            Boolean               @default(false)
+
+  config    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  designer   User   @relation(fields: [designerId], references: [id])
+  designerId String
+
+  club   Club?   @relation(fields: [clubId], references: [id])
+  clubId String?
+
+  eventGames      EventGame[]
+  currentSessions Session[]   @relation("CurrentGame")
+  challenges      Challenge[]
+
+  @@map("games")
+}
+
+// ─────────────────────────────────────────
+// EVENT
+// ─────────────────────────────────────────
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EventMode {
+  GM_CONTROLLED
+  SEQUENCE
+  RANDOM
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  creatorId   String
+  status      EventStatus @default(DRAFT)
+  mode        EventMode   @default(SEQUENCE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  creator User @relation(fields: [creatorId], references: [id])
+
+  club   Club?   @relation(fields: [clubId], references: [id])
+  clubId String?
+
+  games    EventGame[]
+  sessions Session[]
+
+  @@map("events")
+}
+
+enum GamePurpose {
+  NORMAL
+  FINAL
+  TIE_BREAKER
+  BONUS
+}
+
+model EventGame {
+  id        String   @id @default(cuid())
+  eventId   String
+  gameId    String
+  position  Int
+  enabled   Boolean  @default(true)
+  purpose   GamePurpose @default(NORMAL)
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  game  Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@map("event_games")
+}
+
+// ─────────────────────────────────────────
+// SESSION (Live Event Instance)
+// ─────────────────────────────────────────
+
+enum StageMode {
+  LOBBY
+  ANNOUNCEMENT
+  COUNTDOWN
+  QUESTION
+  ANSWER_REVEAL
+  LEADERBOARD
+  TEAM_LEADERBOARD
+  FINAL_RESULTS
+  PAUSED
+  BLANK
+}
+
+enum SessionStatus {
+  LOBBY
+  STARTING
+  ROUND_ACTIVE
+  ROUND_LOCKED
+  RESULTS
+  ENDED
+  // Quiz specific states
+  QUESTION_ACTIVE
+  QUESTION_LOCKED
+  QUESTION_RESULTS
+}
+
+model Session {
+  id                 String        @id @default(cuid())
+  eventId            String
+  roomCode           String        @unique // e.g. G7K29
+  status             SessionStatus @default(LOBBY)
+  stageMode          StageMode     @default(LOBBY)
+  currentGameId      String?
+  currentPosition    Int           @default(0)
+  currentChallengeId String?
+  currentRun         Int           @default(0)
+  challengeStartTime DateTime?
+  startedAt          DateTime?
+  endedAt            DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  event       Event           @relation(fields: [eventId], references: [id])
+  currentGame Game?           @relation("CurrentGame", fields: [currentGameId], references: [id])
+  players     SessionPlayer[]
+  submissions Submission[]
+
+  @@map("sessions")
+}
+
+// ─────────────────────────────────────────
+// SESSION PLAYER
+// ─────────────────────────────────────────
+
+enum SessionPlayerStatus {
+  ACTIVE
+  DISCONNECTED
+  BANNED
+}
+
+model SessionPlayer {
+  id        String              @id @default(cuid())
+  sessionId String
+  userId    String
+  teamId    String?
+  joinedAt  DateTime            @default(now())
+  status    SessionPlayerStatus @default(ACTIVE)
+
+  session    Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team       Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  Submission Submission[]
+
+  @@unique([sessionId, userId])
+  @@map("session_players")
+}
+
+// ─────────────────────────────────────────
+// CHALLENGE (Quiz Question, etc.)
+// ─────────────────────────────────────────
+
+model Challenge {
+  id        String        @id @default(cuid())
+  gameId    String
+  position  Int
+  type      ChallengeType @default(SINGLE_CHOICE)
+  prompt    String
+  config    Json // E.g., { options: [...], correctAnswer: "B" }
+  points    Int           @default(100)
+  timeLimit Int           @default(30) // in seconds
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  game        Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@map("challenges")
+}
+
+// ─────────────────────────────────────────
+// SUBMISSION
+// ─────────────────────────────────────────
+
+model Submission {
+  id           String   @id @default(cuid())
+  sessionId    String
+  challengeId  String
+  playerId     String
+  teamId       String?
+  answer       String // E.g. "B"
+  isCorrect    Boolean
+  responseTime Int // in milliseconds
+  score        Int      @default(0)
+  runId        Int      @default(0)
+  metadata     Json?
+  submittedAt  DateTime @default(now())
+
+  session   Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  challenge Challenge     @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  player    SessionPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team      Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, challengeId, playerId, runId])
+  @@map("submissions")
+}
+
+// ─────────────────────────────────────────
+// AUDIT LOG
+// ─────────────────────────────────────────
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  adminId       String?
+  adminUsername String
+  action        String
+  targetType    String
+  targetId      String?
+  details       Json?
+  createdAt     DateTime @default(now())
+
+  admin         User?    @relation("AdminAuditLogs", fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────
+// DIRECT MESSAGING
+// ─────────────────────────────────────────
+
+model Message {
+  id          String   @id @default(cuid())
+  senderId    String
+  recipientId String
+  content     String
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  sender      User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient   User     @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+// ─────────────────────────────────────────
+// REPORTS
+// ─────────────────────────────────────────
+
+model Report {
+  id             String       @id @default(cuid())
+  reporterId     String?
+  reportedUserId String?
+  targetType     String
+  targetId       String?
+  reason         String
+  details        String?
+  status         ReportStatus @default(PENDING)
+  internalNotes  String?
+  handlerId      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  reporter       User?        @relation("FiledReports", fields: [reporterId], references: [id], onDelete: SetNull)
+  reportedUser   User?        @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  handler        User?        @relation("HandledReports", fields: [handlerId], references: [id], onDelete: SetNull)
+
+  @@map("reports")
+}
+
+// ─────────────────────────────────────────
+// SYSTEM SETTINGS & EMERGENCY CONTROLS
+// ─────────────────────────────────────────
+
+model SystemSetting {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
