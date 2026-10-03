@@ -18,10 +18,6 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
     return;
   }
 
-  if (user.role === 'PLAYER') {
-    res.status(403).json({ error: 'Forbidden: Students cannot host sessions' });
-    return;
-  }
 
   if (user.role === 'GAME_MASTER' && user.approvalStatus !== 'APPROVED') {
     res.status(403).json({
