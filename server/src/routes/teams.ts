@@ -57,7 +57,7 @@ router.get('/current', async (req: AuthRequest, res: Response): Promise<void> =>
         leaderName: team.creator.name || team.creator.username,
         isLeaderOnline: isUserOnline(team.createdBy),
         membersCount: team.members.length,
-        maxSize: 5,
+        maxSize: 4,
         status: 'READY',
         createdAt: team.createdAt,
         members: team.members.map(m => ({
@@ -169,7 +169,7 @@ router.post('/create', async (req: AuthRequest, res: Response): Promise<void> =>
         leaderHandle: `${user.username}@terminal`,
         leaderName: user.name || user.username,
         membersCount: 1,
-        maxSize: 5,
+        maxSize: 4,
         status: 'READY',
         members: [
           {
@@ -233,8 +233,8 @@ router.post('/join', async (req: AuthRequest, res: Response): Promise<void> => {
       return;
     }
 
-    if (team.members.length >= 5) {
-      res.status(400).json({ error: `Team "${team.name}" is full (5/5 members).` });
+    if (team.members.length >= 4) {
+      res.status(400).json({ error: `Team "${team.name}" is full (4/4 members).` });
       return;
     }
 
@@ -279,7 +279,7 @@ router.post('/join', async (req: AuthRequest, res: Response): Promise<void> => {
         name: team.name,
         leaderHandle: `${team.creator.username}@terminal`,
         membersCount: team.members.length + 1,
-        maxSize: 5
+        maxSize: 4
       }
     });
   } catch (err: any) {
@@ -316,8 +316,8 @@ router.post('/invite', async (req: AuthRequest, res: Response): Promise<void> =>
       return;
     }
 
-    if (callerMembership.team.members.length >= 5) {
-      res.status(400).json({ error: 'Team is already full (5/5 members).' });
+    if (callerMembership.team.members.length >= 4) {
+      res.status(400).json({ error: 'Team is already full (4/4 members).' });
       return;
     }
 
@@ -484,8 +484,8 @@ router.post('/accept', async (req: AuthRequest, res: Response): Promise<void> =>
       return;
     }
 
-    if (invite.team.members.length >= 5) {
-      res.status(400).json({ error: `Team "${invite.team.name}" is now full.` });
+    if (invite.team.members.length >= 4) {
+      res.status(400).json({ error: `Team "${invite.team.name}" is now full (4/4 members).` });
       return;
     }
 

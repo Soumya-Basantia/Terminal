@@ -153,9 +153,11 @@ export const TeamChatBox: React.FC<TeamChatBoxProps> = ({
     });
 
     setInputText('');
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation();
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();

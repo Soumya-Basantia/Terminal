@@ -5,6 +5,7 @@ interface CommandRailProps {
   activePanel?: string | null;
   activePanelData?: any;
   unreadCount?: number;
+  unreadTeamCount?: number;
   onSelectCommand?: (cmd: string) => void;
 }
 
@@ -12,6 +13,7 @@ export const CommandRail: React.FC<CommandRailProps> = ({
   activePanel, 
   activePanelData,
   unreadCount = 0,
+  unreadTeamCount = 0,
   onSelectCommand
 }) => {
   const commands = [
@@ -20,7 +22,7 @@ export const CommandRail: React.FC<CommandRailProps> = ({
     { id: 'scorecard', name: 'scorecard', syntax: 'scorecard', tag: 'SCORES', color: 'text-amber-400' },
     { id: 'history', name: 'history', syntax: 'history', tag: 'SESSIONS', color: 'text-purple-400' },
     { id: 'won', name: 'won', syntax: 'won', tag: 'VICTORIES', color: 'text-yellow-400' },
-    { id: 'team', name: 'team', syntax: 'team', tag: 'SQUAD', color: 'text-pink-400' },
+    { id: 'team', name: 'team', syntax: 'team', tag: 'SQUAD', color: 'text-pink-400', count: unreadTeamCount },
     { id: 'collab', name: 'collab', syntax: 'collab', tag: 'NETWORK', color: 'text-cyan-300' },
     { id: 'collab-requests', name: 'collab-requests', syntax: 'collab requests', tag: 'QUEUE', color: 'text-sky-300' },
     { id: 'messages', name: 'messages', syntax: 'messages', tag: 'DIRECT', color: 'text-amber-300', count: unreadCount },

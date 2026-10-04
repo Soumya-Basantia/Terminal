@@ -21,7 +21,8 @@ import {
   WonPanel,
   InboxPanel
 } from './panels';
-import { TeamChatBox } from './TeamChatBox';
+import { Users } from 'lucide-react';
+import { getSocket } from '../../../lib/socket';
 import './terminal.css';
 
 interface TerminalShellProps {
@@ -42,9 +43,34 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
 }) => {
   const [outputs, setOutputs] = useState<TerminalOutputItem[]>([]);
   const [activePanel, setActivePanel] = useState<ActivePanelState | null>(null);
-  const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
+  const [unreadTeamCount, setUnreadTeamCount] = useState<number>(0);
   const [isExecuting, setIsExecuting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Clear unread count when team panel opens
+  useEffect(() => {
+    if (activePanel?.name === 'team') {
+      setUnreadTeamCount(0);
+    }
+  }, [activePanel]);
+
+  // Track team messages to update unread badge when team panel is closed
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const handleTeamMsg = () => {
+      setActivePanel(curr => {
+        if (curr?.name !== 'team') {
+          setUnreadTeamCount(c => c + 1);
+        }
+        return curr;
+      });
+    };
+    socket.on('team:message', handleTeamMsg);
+    return () => {
+      socket.off('team:message', handleTeamMsg);
+    };
+  }, []);
 
   const student = workspaceData?.student || {
     name: username,
@@ -156,9 +182,11 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
           setActivePanel(null);
         },
         activePanel: activePanel?.name || null,
-        openTeamChat: () => setIsTeamChatOpen(true),
-        closeTeamChat: () => setIsTeamChatOpen(false),
-        isTeamChatOpen
+        openTeamChat: () => setActivePanel({ name: 'team' }),
+        closeTeamChat: () => {
+          setActivePanel(curr => (curr?.name === 'team' ? null : curr));
+        },
+        isTeamChatOpen: activePanel?.name === 'team'
       };
 
       setIsExecuting(true);
@@ -271,21 +299,39 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
         onLogout={onLogout} 
       />
 
-      {/* Main Workspace Body */}
+      {/* Main Workspace Body: Command Rail + Central Terminal / Game Area + Expandable Side Panel */}
       <div className="flex-1 flex overflow-hidden min-h-0 relative">
         {/* Left Command Rail (Visual HUD Reference) */}
         <CommandRail 
           activePanel={activePanel?.name} 
           activePanelData={activePanel?.data}
           unreadCount={workspaceData?.unreadMessageCount} 
+          unreadTeamCount={unreadTeamCount}
           onSelectCommand={(cmd) => handleCommand(cmd)}
         />
 
-        {/* Central Terminal Workspace */}
+        {/* Central Terminal / Game Workspace */}
         <main 
           aria-label="Student Command Workspace"
-          className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#07090e] relative transition-all duration-300 ease-in-out"
+          className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#07090e] relative transition-all duration-200 ease-out"
         >
+          {/* Quick Floating [TEAM] Trigger on right edge when panel is closed */}
+          {!activePanel && (
+            <button
+              onClick={() => setActivePanel({ name: 'team' })}
+              className="absolute top-3 right-4 z-10 px-2.5 py-1 bg-[#090d16] hover:bg-[#121622] border border-cyan-500/70 text-cyan-300 font-mono text-[11px] font-bold flex items-center gap-1.5 shadow-[2px_2px_0px_#000] cursor-pointer transition-colors"
+              title="Open Squad Workspace & Live Chat (team)"
+            >
+              <Users size={12} className="text-cyan-400" />
+              <span>TEAM &gt;</span>
+              {unreadTeamCount > 0 && (
+                <span className="px-1 py-0.2 bg-amber-500 text-black text-[9px] font-black animate-pulse">
+                  ● {unreadTeamCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Scrollable Output Stream */}
           <div 
             ref={scrollRef}
@@ -342,51 +388,48 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
               </div>
             )}
           </div>
-
-          {/* Real-time Bottom Team Chat Box */}
-          <TeamChatBox isOpen={isTeamChatOpen} onClose={() => setIsTeamChatOpen(false)} />
-
-          {/* Persistent Terminal Command Bar */}
-          <div className="p-3 bg-[#0a0d16] border-t-2 border-cyan-500/60 shadow-[0_-4px_16px_rgba(0,0,0,0.6)] shrink-0 z-10">
-            {activePanel && (
-              <div className="flex items-center justify-between text-[11px] text-zinc-400 mb-2 select-none">
-                <span className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                  <span>ACTIVE TELEMETRY MODULE: <strong className="text-cyan-300 font-mono">/bin/{activePanel.name}</strong></span>
-                </span>
-                <span>Press <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-700 text-zinc-200 text-[10px] font-mono">Esc</kbd> to return to full terminal</span>
-              </div>
-            )}
-
-            <TerminalInput 
-              username={promptUser} 
-              onCommand={handleCommand} 
-              onClear={handleClear} 
-              onEscape={handleClosePanel}
-              isExecuting={isExecuting}
-            />
-
-            <div className="mt-2 text-[10px] text-zinc-500 font-mono tracking-wider flex flex-wrap gap-4 select-none">
-              <span>ENTER <span className="text-zinc-600">execute</span></span>
-              <span>TAB <span className="text-zinc-600">autocomplete</span></span>
-              <span>↑↓ <span className="text-zinc-600">history</span></span>
-              <span>ESC <span className="text-zinc-600">close side panel</span></span>
-              <span>CTRL+L <span className="text-zinc-600">clear</span></span>
-            </div>
-          </div>
         </main>
 
-        {/* Dynamic Expandable Side Panel (Right) */}
+        {/* Dynamic Expandable Side Panel (Right) — takes 28-36% viewport width, fast transition */}
         <aside 
           aria-label="Command Telemetry Panel"
-          className={`transition-all duration-300 ease-in-out overflow-hidden flex flex-col shrink-0 ${
+          className={`transition-all duration-200 ease-out overflow-hidden flex flex-col shrink-0 z-20 ${
             activePanel 
-              ? 'md:w-[44%] md:min-w-[380px] md:max-w-[620px] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:w-full max-md:z-30 opacity-100 pointer-events-auto border-l-2 border-cyan-500/80 shadow-[-6px_0_24px_rgba(0,0,0,0.7)]' 
+              ? 'w-[32%] min-w-[320px] max-w-[460px] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:w-full max-md:z-30 opacity-100 pointer-events-auto border-l-2 border-cyan-500/80 shadow-[-6px_0_24px_rgba(0,0,0,0.7)]' 
               : 'w-0 min-w-0 max-w-0 opacity-0 pointer-events-none border-l-0'
           }`}
         >
           {activePanel && renderActivePanel()}
         </aside>
+      </div>
+
+      {/* PERMANENT TERMINAL ENTRY / COMMAND BAR — ALWAYS DOCKED AT THE BOTTOM */}
+      <div className="p-2.5 sm:p-3 bg-[#0a0d16] border-t-2 border-cyan-500/60 shadow-[0_-4px_16px_rgba(0,0,0,0.6)] shrink-0 z-30 w-full">
+        {activePanel && (
+          <div className="flex items-center justify-between text-[11px] text-zinc-400 mb-1.5 select-none">
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span>ACTIVE MODULE: <strong className="text-cyan-300 font-mono">/bin/{activePanel.name}</strong></span>
+            </span>
+            <span className="text-[10px]">Press <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-700 text-zinc-200 text-[9px] font-mono">Esc</kbd> to return to full terminal</span>
+          </div>
+        )}
+
+        <TerminalInput 
+          username={promptUser} 
+          onCommand={handleCommand} 
+          onClear={handleClear} 
+          onEscape={handleClosePanel}
+          isExecuting={isExecuting}
+        />
+
+        <div className="mt-1.5 text-[9px] sm:text-[10px] text-zinc-500 font-mono tracking-wider flex flex-wrap gap-4 select-none">
+          <span>ENTER <span className="text-zinc-600">execute</span></span>
+          <span>TAB <span className="text-zinc-600">autocomplete</span></span>
+          <span>↑↓ <span className="text-zinc-600">history</span></span>
+          <span>ESC <span className="text-zinc-600">close side panel</span></span>
+          <span>CTRL+L <span className="text-zinc-600">clear</span></span>
+        </div>
       </div>
     </div>
   );

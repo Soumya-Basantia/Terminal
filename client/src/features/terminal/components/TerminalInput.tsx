@@ -24,19 +24,39 @@ export const TerminalInput: React.FC<TerminalInputProps> = ({
   const [historyIndex, setHistoryIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto focus input
+  // Auto focus input ONLY when no other input or interactive element is focused
   useEffect(() => {
-    const focusInput = () => {
+    const isInteractiveElement = (el: Element | null): boolean => {
+      if (!el) return false;
+      return !!el.closest('input, textarea, [contenteditable="true"], button, a, select, [role="button"]');
+    };
+
+    const handleFocus = (e: MouseEvent | KeyboardEvent) => {
+      // Never steal focus if target or activeElement is inside another input/textarea
+      const target = e.target as Element | null;
+      if (isInteractiveElement(target)) return;
+
+      const activeEl = document.activeElement;
+      if (isInteractiveElement(activeEl)) return;
+
       // Don't focus if user is selecting text
       if (window.getSelection()?.toString()) return;
+
+      // For keydown events, ignore modifier/control keys
+      if ('key' in e) {
+        if (e.key === 'Escape' || e.key === 'Tab' || e.altKey || e.ctrlKey || e.metaKey) {
+          return;
+        }
+      }
+
       inputRef.current?.focus();
     };
     
-    document.addEventListener('click', focusInput);
-    document.addEventListener('keydown', focusInput);
+    document.addEventListener('click', handleFocus);
+    document.addEventListener('keydown', handleFocus);
     return () => {
-      document.removeEventListener('click', focusInput);
-      document.removeEventListener('keydown', focusInput);
+      document.removeEventListener('click', handleFocus);
+      document.removeEventListener('keydown', handleFocus);
     };
   }, []);
 
