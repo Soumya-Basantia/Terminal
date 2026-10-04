@@ -70,6 +70,10 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
       setChatMessages([]);
     };
 
+    const handleChatCleared = () => {
+      setChatMessages([]);
+    };
+
     socket.on('team:updated', handleUpdate);
     socket.on('team:member_joined', handleUpdate);
     socket.on('team:member_left', handleUpdate);
@@ -78,6 +82,7 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
     socket.on('team:leadership_transferred', handleUpdate);
     socket.on('team:presence', handleUpdate);
     socket.on('team:message', handleMessage);
+    socket.on('team:chat_cleared', handleChatCleared);
 
     return () => {
       socket.off('team:updated', handleUpdate);
@@ -88,6 +93,7 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
       socket.off('team:leadership_transferred', handleUpdate);
       socket.off('team:presence', handleUpdate);
       socket.off('team:message', handleMessage);
+      socket.off('team:chat_cleared', handleChatCleared);
     };
   }, []);
 

@@ -828,8 +828,52 @@ router.get('/messages', async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
+    const reqSessionId = req.query.sessionId as string | undefined;
+    const reqRoomCode = req.query.roomCode ? String(req.query.roomCode).toUpperCase() : undefined;
+
+    let targetSessionId = reqSessionId;
+    let targetRoomCode = reqRoomCode;
+
+    if (!targetSessionId && targetRoomCode) {
+      const sess = await prisma.session.findUnique({
+        where: { roomCode: targetRoomCode }
+      });
+      if (sess) {
+        targetSessionId = sess.id;
+        targetRoomCode = sess.roomCode;
+      }
+    }
+
+    if (!targetSessionId && !targetRoomCode) {
+      // Check if user is in an active game session
+      const activeSP = await prisma.sessionPlayer.findFirst({
+        where: {
+          userId,
+          session: { status: { not: 'ENDED' } }
+        },
+        include: { session: true }
+      });
+      if (activeSP) {
+        targetSessionId = activeSP.sessionId;
+        targetRoomCode = activeSP.session.roomCode;
+      }
+    }
+
+    const whereClause: any = {
+      teamId: membership.teamId
+    };
+
+    if (targetSessionId) {
+      whereClause.sessionId = targetSessionId;
+    } else if (targetRoomCode) {
+      whereClause.roomCode = targetRoomCode;
+    } else {
+      // Default to general/lobby messages (not associated with an ended game)
+      whereClause.sessionId = null;
+    }
+
     const messages = await prisma.teamMessage.findMany({
-      where: { teamId: membership.teamId },
+      where: whereClause,
       include: {
         sender: {
           select: { username: true, name: true }
@@ -843,9 +887,13 @@ router.get('/messages', async (req: AuthRequest, res: Response): Promise<void> =
     });
 
     res.json({
+      sessionId: targetSessionId || null,
+      roomCode: targetRoomCode || null,
       messages: messages.map(m => ({
         id: m.id,
         teamId: m.teamId,
+        sessionId: m.sessionId,
+        roomCode: m.roomCode,
         senderHandle: `${m.sender.username}@terminal`,
         senderName: m.sender.name || m.sender.username,
         content: m.content,

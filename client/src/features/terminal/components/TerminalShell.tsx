@@ -66,9 +66,14 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
         return curr;
       });
     };
+    const handleChatCleared = () => {
+      setUnreadTeamCount(0);
+    };
     socket.on('team:message', handleTeamMsg);
+    socket.on('team:chat_cleared', handleChatCleared);
     return () => {
       socket.off('team:message', handleTeamMsg);
+      socket.off('team:chat_cleared', handleChatCleared);
     };
   }, []);
 

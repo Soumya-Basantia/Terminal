@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { generateSessionCode } from '../utils/sessionCode';
-import { getSessionState } from '../services/sessionService';
+import { getSessionState, purgeGameSessionChat } from '../services/sessionService';
 import { SessionStatus } from '@prisma/client';
 import { checkEventAuthorization } from '../utils/authorization';
 import { registry, Validator, ValidationContext } from '../engine';
@@ -165,6 +165,10 @@ router.put('/:id/status', authenticate, async (req: AuthRequest, res: Response):
   });
 
   const io = req.app.get('io');
+  if (status === 'ENDED') {
+    await purgeGameSessionChat(updated.id, updated.roomCode, io);
+  }
+
   if (io) {
     const updatedState = await getSessionState(updated.roomCode);
     io.to(`session:${updated.roomCode}`).emit('session_state_update', updatedState);
@@ -205,6 +209,7 @@ router.put('/:id/advance', authenticate, async (req: AuthRequest, res: Response)
 
   const nextPos = session.currentPosition + 1;
   const nextGame = session.event.games.find(g => g.position === nextPos);
+  const isEnding = !nextGame;
 
   const updated = await prisma.session.update({
     where: { id: req.params.id as string },
@@ -216,12 +221,38 @@ router.put('/:id/advance', authenticate, async (req: AuthRequest, res: Response)
   });
 
   const io = req.app.get('io');
+  if (isEnding) {
+    await purgeGameSessionChat(updated.id, updated.roomCode, io);
+  }
+
   if (io) {
     const updatedState = await getSessionState(updated.roomCode);
     io.to(`session:${updated.roomCode}`).emit('session_state_update', updatedState);
   }
 
   res.json({ session: updated });
+});
+
+// POST /api/sessions/:id/purge-chat — explicitly purge temporary game room chat
+router.post('/:id/purge-chat', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const idOrCode = req.params.id as string;
+  const session = await prisma.session.findFirst({
+    where: {
+      OR: [
+        { id: idOrCode },
+        { roomCode: idOrCode.toUpperCase() }
+      ]
+    }
+  });
+
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+
+  const io = req.app.get('io');
+  await purgeGameSessionChat(session.id, session.roomCode, io);
+  res.json({ success: true, message: 'Game session chat purged successfully' });
 });
 
 // POST /api/sessions/active/submit

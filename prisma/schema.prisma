@@ -311,6 +311,8 @@ model TeamInvitation {
 model TeamMessage {
   id        String   @id @default(cuid())
   teamId    String
+  sessionId String?
+  roomCode  String?
   senderId  String
   content   String
   createdAt DateTime @default(now())
@@ -318,6 +320,9 @@ model TeamMessage {
   team   Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
   sender User @relation("TeamMessages", fields: [senderId], references: [id], onDelete: Cascade)
 
+  @@index([sessionId])
+  @@index([roomCode])
+  @@index([teamId, sessionId])
   @@map("team_messages")
 }
 
@@ -367,7 +372,7 @@ model Game {
   // Participation settings
   maxPlayers      Int     @default(200)
   teamsEnabled    Boolean @default(false)
-  maxTeamSize     Int     @default(5)
+  maxTeamSize     Int     @default(4)
   allowLateJoin   Boolean @default(true)
   allowSpectators Boolean @default(false)
 

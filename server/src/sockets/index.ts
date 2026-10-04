@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { prisma } from '../lib/prisma';
-import { getSessionState } from '../services/sessionService';
+import { getSessionState, purgeGameSessionChat } from '../services/sessionService';
 import jwt from 'jsonwebtoken';
 import { checkEventAuthorization } from '../utils/authorization';
 const JWT_SECRET = process.env.JWT_SECRET || 'terminal-secret-change-in-prod';
@@ -149,12 +149,23 @@ export function setupSocketHandlers(io: Server): void {
       socket.join(`session:${code}`);
       socket.data.role = 'PLAYER';
       socket.data.roomCode = code;
+      socket.data.sessionId = sessionPlayer.sessionId;
       socket.data.sessionPlayerId = sessionPlayer.id;
 
-      // Ensure status is active
+      // Ensure status is active and team is linked if member
+      const teamUpdateData: any = { status: 'ACTIVE' };
+      if (!sessionPlayer.teamId) {
+        const teamMember = await prisma.teamMember.findFirst({
+          where: { userId }
+        });
+        if (teamMember) {
+          teamUpdateData.teamId = teamMember.teamId;
+        }
+      }
+
       await prisma.sessionPlayer.update({
         where: { id: sessionPlayer.id },
-        data: { status: 'ACTIVE' }
+        data: teamUpdateData
       });
 
       // Notify everyone of state change
@@ -520,6 +531,8 @@ export function setupSocketHandlers(io: Server): void {
         }
       });
       
+      await purgeGameSessionChat(session.id, code, io);
+      
       const state = await getSessionState(code);
       io.to(`session:${code}`).emit('session_state_update', state);
     });
@@ -565,6 +578,7 @@ export function setupSocketHandlers(io: Server): void {
           where: { roomCode: code },
           data: { status: 'ENDED', endedAt: new Date() }
         });
+        await purgeGameSessionChat(session.id, code, io);
       }
       
       const state = await getSessionState(code);
@@ -658,7 +672,7 @@ export function setupSocketHandlers(io: Server): void {
       });
     });
 
-    socket.on('team:send_message', async (data: { content: string; teamId?: string }) => {
+    socket.on('team:send_message', async (data: { content: string; teamId?: string; sessionId?: string; roomCode?: string }) => {
       const userId = socket.data.userId;
       if (!userId) {
         socket.emit('team:error', { message: 'Authentication required' });
@@ -694,9 +708,39 @@ export function setupSocketHandlers(io: Server): void {
       const senderHandle = `${membership.user.username}@terminal`;
       const senderName = membership.user.name || membership.user.username;
 
+      // Scoping to active game room / session
+      let targetSessionId = data?.sessionId || socket.data.sessionId;
+      let targetRoomCode = data?.roomCode || socket.data.roomCode;
+
+      if (!targetSessionId && targetRoomCode) {
+        const sess = await prisma.session.findUnique({
+          where: { roomCode: String(targetRoomCode).toUpperCase() }
+        });
+        if (sess) {
+          targetSessionId = sess.id;
+          targetRoomCode = sess.roomCode;
+        }
+      }
+
+      if (!targetSessionId) {
+        const activeSP = await prisma.sessionPlayer.findFirst({
+          where: {
+            userId,
+            session: { status: { not: 'ENDED' } }
+          },
+          include: { session: true }
+        });
+        if (activeSP) {
+          targetSessionId = activeSP.sessionId;
+          targetRoomCode = activeSP.session.roomCode;
+        }
+      }
+
       const msg = await prisma.teamMessage.create({
         data: {
           teamId,
+          sessionId: targetSessionId || null,
+          roomCode: targetRoomCode || null,
           senderId: userId,
           content
         }
@@ -705,6 +749,8 @@ export function setupSocketHandlers(io: Server): void {
       const messagePayload = {
         id: msg.id,
         teamId,
+        sessionId: msg.sessionId,
+        roomCode: msg.roomCode,
         senderHandle,
         senderName,
         content,
@@ -713,6 +759,16 @@ export function setupSocketHandlers(io: Server): void {
 
       // Broadcast exclusively to team channel
       io.to(`team:${teamId}`).emit('team:message', messagePayload);
+    });
+
+    socket.on('session:leave', async (data?: { roomCode?: string }) => {
+      const code = (data?.roomCode || socket.data.roomCode)?.toUpperCase();
+      if (code) {
+        socket.leave(`session:${code}`);
+        socket.data.roomCode = undefined;
+        socket.data.sessionId = undefined;
+        socket.emit('team:chat_cleared', { roomCode: code });
+      }
     });
 
     socket.on('team:leave_channel', (data?: { teamId?: string }) => {

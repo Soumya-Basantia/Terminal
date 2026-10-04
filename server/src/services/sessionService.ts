@@ -640,3 +640,38 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
     routerProgress,
   };
 }
+
+/**
+ * Purges all temporary game-room / session chat messages for a finished session.
+ * Emits 'team:chat_cleared' to sockets so client UI resets to empty state.
+ */
+export async function purgeGameSessionChat(sessionId: string, roomCode?: string, io?: any): Promise<void> {
+  try {
+    const deleteResult = await prisma.teamMessage.deleteMany({
+      where: {
+        OR: [
+          { sessionId },
+          ...(roomCode ? [{ roomCode }] : [])
+        ]
+      }
+    });
+
+    console.log(`[Chat Cleanup] Purged ${deleteResult.count} temporary game session chat messages for session ${sessionId} (${roomCode || 'no roomCode'})`);
+
+    if (io) {
+      if (roomCode) {
+        io.to(`session:${roomCode}`).emit('team:chat_cleared', { sessionId, roomCode });
+      }
+      const sessionPlayers = await prisma.sessionPlayer.findMany({
+        where: { sessionId },
+        select: { teamId: true }
+      });
+      const teamIds = new Set(sessionPlayers.map(p => p.teamId).filter(Boolean));
+      for (const tId of teamIds) {
+        io.to(`team:${tId}`).emit('team:chat_cleared', { sessionId, roomCode, teamId: tId });
+      }
+    }
+  } catch (err: any) {
+    console.error(`[Chat Cleanup Error] Failed to purge session chat for ${sessionId}:`, err);
+  }
+}

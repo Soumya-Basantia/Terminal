@@ -120,16 +120,22 @@ export const TeamChatBox: React.FC<TeamChatBoxProps> = ({
       onClose();
     };
 
+    const handleChatCleared = () => {
+      setMessages([]);
+    };
+
     socket.on('connect', handleConnect);
     socket.on('team:message', handleMessage);
     socket.on('team:presence', handlePresence);
     socket.on('team:disbanded', handleTeamDisbanded);
+    socket.on('team:chat_cleared', handleChatCleared);
 
     return () => {
       socket.off('connect', handleConnect);
       socket.off('team:message', handleMessage);
       socket.off('team:presence', handlePresence);
       socket.off('team:disbanded', handleTeamDisbanded);
+      socket.off('team:chat_cleared', handleChatCleared);
     };
   }, [team?.id, isMinimized]);
 
