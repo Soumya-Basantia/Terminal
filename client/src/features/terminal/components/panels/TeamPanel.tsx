@@ -155,8 +155,8 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
         ) : team ? (
           <div className="space-y-3.5">
             {/* 1. Compact Team Identity Banner */}
-            <div className="bg-[#0e121c] border-2 border-cyan-500/60 p-3 shadow-[2px_2px_0px_#000] space-y-2">
-              <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-2">
+            <div className="bg-[#0a0d16] border border-[#1c2638] p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2 border-b border-[#1c2638] pb-2">
                 <div>
                   <div className="text-[9px] text-zinc-400 uppercase font-bold tracking-wider">
                     TEAM IDENTITY
@@ -181,7 +181,7 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
 
               {/* Leader Telemetry & Team Size */}
               <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <div className="bg-[#07090e] p-2 border border-zinc-800 flex items-center gap-1.5 min-w-0">
+                <div className="bg-[#07090e] p-2 border border-[#1c2638] flex items-center gap-1.5 min-w-0">
                   <Crown size={12} className="text-amber-400 shrink-0" />
                   <div className="truncate">
                     <span className="text-zinc-500 text-[9px] block">LEADER</span>
@@ -189,7 +189,7 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
                   </div>
                 </div>
 
-                <div className="bg-[#07090e] p-2 border border-zinc-800 flex items-center gap-1.5">
+                <div className="bg-[#07090e] p-2 border border-[#1c2638] flex items-center gap-1.5">
                   <Users size={12} className="text-emerald-400 shrink-0" />
                   <div>
                     <span className="text-zinc-500 text-[9px] block">TEAM SIZE</span>
@@ -210,7 +210,7 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
                 {team.members.map((m: any) => (
                   <div
                     key={m.id}
-                    className="bg-[#0b0e17] border border-zinc-800 px-2.5 py-1.5 flex items-center justify-between gap-2"
+                    className="bg-[#0b0e17] border border-[#1c2638] px-2.5 py-1.5 flex items-center justify-between gap-2"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${m.isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'}`} />
@@ -235,9 +235,9 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
             </div>
 
             {/* 3. Real-Time Embedded Team Chat */}
-            <div className="border-2 border-cyan-500/60 bg-[#07090e] shadow-[2px_2px_0px_#000] flex flex-col overflow-hidden">
+            <div className="border border-[#1c2638] bg-[#07090e] flex flex-col overflow-hidden">
               {/* Chat Channel Header */}
-              <div className="flex items-center justify-between px-3 py-1.5 bg-[#0e121c] border-b border-cyan-500/40 select-none">
+              <div className="flex items-center justify-between px-3 py-1.5 bg-[#0a0d16] border-b border-[#1c2638] select-none">
                 <div className="flex items-center gap-1.5">
                   <MessageSquare size={12} className="text-cyan-400" />
                   <span className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider">
@@ -292,7 +292,7 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
               {/* Chat Input Line */}
               <form
                 onSubmit={handleSendMessage}
-                className="p-2 bg-[#090b12] border-t border-zinc-800 flex items-center gap-2"
+                className="p-2 bg-[#090b12] border-t border-[#1c2638] flex items-center gap-2"
               >
                 <span className="text-cyan-400 font-bold text-xs select-none pl-1">&gt;</span>
                 <input
@@ -308,7 +308,7 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
                 />
                 <button
                   type="submit"
-                  className="px-2.5 py-1 bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shadow-[1px_1px_0px_#000]"
+                  className="px-2.5 py-1 bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                   title="Send Transmission (Enter)"
                 >
                   <span>SEND</span>
@@ -318,7 +318,7 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
             </div>
 
             {/* 4. Squad Commands (Permission-Aware) */}
-            <div className="bg-[#090c14] border border-zinc-800 p-2.5 space-y-1.5">
+            <div className="bg-[#090c14] border border-[#1c2638] p-2.5 space-y-1.5">
               <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
                 <Shield size={11} className="text-cyan-400" />
                 <span>SQUAD COMMANDS</span>
@@ -353,8 +353,8 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
         ) : (
           /* Empty State: Solo Operative */
           <div className="space-y-3">
-            <div className="bg-[#121622] border-2 border-zinc-800 p-5 text-center space-y-2.5">
-              <div className="w-10 h-10 bg-zinc-900 border border-zinc-700 flex items-center justify-center mx-auto text-zinc-500">
+            <div className="bg-[#0a0d16] border border-[#1c2638] p-5 text-center space-y-2.5">
+              <div className="w-10 h-10 bg-[#07090e] border border-[#1c2638] flex items-center justify-center mx-auto text-zinc-500">
                 <Users size={20} />
               </div>
               <div>
@@ -368,7 +368,7 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({ onClose }) => {
             </div>
 
             {/* Solo Operative Commands */}
-            <div className="bg-[#090c14] border border-zinc-800 p-2.5 space-y-1.5">
+            <div className="bg-[#090c14] border border-[#1c2638] p-2.5 space-y-1.5">
               <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
                 <Shield size={11} className="text-cyan-400" />
                 <span>AVAILABLE COMMANDS</span>

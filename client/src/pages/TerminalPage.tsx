@@ -89,19 +89,19 @@ export default function TerminalPage() {
 
 
   return (
-    <div className="h-screen max-h-screen w-screen overflow-hidden bg-[#040508] flex flex-col p-1.5 sm:p-2.5 md:p-3 text-zinc-100 font-mono select-text relative">
+    <div className="h-screen w-screen max-h-screen max-w-full overflow-hidden bg-[#05070c] flex flex-col m-0 p-0 text-zinc-100 font-mono select-text relative">
       {/* Background Cyber Grid */}
       <div 
         style={{
           position: 'fixed', inset: 0, pointerEvents: 'none',
-          backgroundImage: 'linear-gradient(rgba(0,255,204,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,204,0.025) 1px, transparent 1px)',
-          backgroundSize: '36px 36px',
+          backgroundImage: 'linear-gradient(rgba(0,240,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(0,240,255,0.015) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
           zIndex: 0
         }} 
       />
 
-      {/* Main Terminal Window Frame */}
-      <div className="w-full max-w-[1720px] mx-auto flex-1 flex flex-col h-full min-h-0 relative z-10">
+      {/* Main Terminal Shell - Pure Edge to Edge */}
+      <div className="w-full flex-1 flex flex-col h-full min-h-0 relative z-10">
         <TerminalShell 
           username={username} 
           workspaceData={workspace}

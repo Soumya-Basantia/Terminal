@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { TerminalHeader } from './TerminalHeader';
 import { TerminalInput } from './TerminalInput';
-import { TerminalLogo } from './TerminalLogo';
 import { CommandRail } from './CommandRail';
 import type { TerminalOutputItem } from '../core/types';
 import { commandRegistry } from '../core/registry';
@@ -293,7 +292,7 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#05070c] border-2 border-cyan-500/70 shadow-[0_0_35px_rgba(0,255,204,0.18)] overflow-hidden font-mono select-text relative">
+    <div className="w-full h-full flex flex-col bg-[#05070c] overflow-hidden font-mono select-text relative">
       {/* Top Bar with System telemetry, Clock & Logout */}
       <TerminalHeader 
         username={promptUser}
@@ -324,7 +323,7 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
           {!activePanel && (
             <button
               onClick={() => setActivePanel({ name: 'team' })}
-              className="absolute top-3 right-4 z-10 px-2.5 py-1 bg-[#090d16] hover:bg-[#121622] border border-cyan-500/70 text-cyan-300 font-mono text-[11px] font-bold flex items-center gap-1.5 shadow-[2px_2px_0px_#000] cursor-pointer transition-colors"
+              className="absolute top-3 right-4 z-10 px-2.5 py-1 bg-[#090d16] hover:bg-[#121826] border border-[#1c2638] hover:border-cyan-500/70 text-cyan-300 font-mono text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors select-none"
               title="Open Squad Workspace & Live Chat (team)"
             >
               <Users size={12} className="text-cyan-400" />
@@ -342,43 +341,54 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
             ref={scrollRef}
             className="flex-1 overflow-y-auto p-3 sm:p-5 terminal-scroll space-y-4 text-xs"
           >
-            {/* Primary Pixel Logo */}
-            <TerminalLogo className="py-1" />
+            {/* Terminal Monospaced ASCII Header & Native Linux MOTD */}
+            <div className="space-y-3 font-mono text-xs select-text">
+              {/* ASCII Banner */}
+              <pre className="text-cyan-400 font-bold text-[10px] sm:text-xs leading-none select-none tracking-tight overflow-x-auto">
+{`  ████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗ █████╗ ██╗     
+  ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║██╔══██╗██║     
+     ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║███████║██║     
+     ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║██║██║╚██╗██║██╔══██║██║     
+     ██║   ███████╗██║  ██║██║ ╚═╝ ██║██║██║ ╚████║██║  ██║███████╗
+     ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝`}
+              </pre>
 
-            {/* Linux Native Boot Telemetry & Verified Student Identity */}
-            <div className="bg-[#090d16] border-2 border-cyan-500/50 p-3 sm:p-4 text-xs space-y-2 shadow-[4px_4px_0px_#000]">
-              <div className="text-cyan-400 font-bold border-b border-zinc-800 pb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="tracking-wider">TERMINAL-OS v3.4.0 (x86_64-cybercore-linux-gnu)</span>
-                <span className="text-[10px] px-2 py-0.5 bg-emerald-950 border border-emerald-400/80 text-emerald-300 font-bold tracking-widest uppercase">
-                  AUTHENTICATION VERIFIED
-                </span>
+              {/* Linux Release and Kernel Line */}
+              <div className="text-zinc-400 text-[11px] leading-relaxed">
+                <span className="text-zinc-200 font-bold">TERMINAL-OS v3.4.0-release</span> (x86_64-cybercore-linux-gnu)
+                <br />
+                Kernel 6.8.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC
+                <br />
+                Welcome to <span className="text-cyan-300 font-bold">TERMINAL</span> — Student Command Arena &amp; Cyber Operations.
               </div>
 
-              {/* Native Terminal Boot Telemetry Sequence */}
-              <div className="font-mono text-[11px] space-y-0.5 text-zinc-400 border-b border-zinc-800/80 pb-2 select-text">
-                <div>&gt; INITIALIZING CORE ................................ <span className="text-emerald-400 font-bold">OK</span></div>
-                <div>&gt; AUTHENTICATING [USN: {student.usn}] ............... <span className="text-emerald-400 font-bold">OK</span></div>
-                <div>&gt; LOADING WORKSPACE [{promptUser}@terminal] ........ <span className="text-emerald-400 font-bold">OK</span></div>
-                <div>&gt; CONNECTING NETWORK [cybercore.terminal.edu] ....... <span className="text-emerald-400 font-bold">OK</span></div>
-                <div className="text-cyan-300 font-bold pt-1">TERMINAL READY_</div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-zinc-300 pt-1 font-mono text-[11px]">
-                <div>* University USN   : <span className="text-emerald-400 font-bold">{student.usn}</span></div>
-                <div>* Academic Stream  : <span className="text-zinc-200">Branch {student.branch} • Section {student.section}</span></div>
-                <div>* Student Email    : <span className="text-zinc-400">{student.email}</span></div>
-                <div>* Security Role    : <span className="text-purple-300 font-bold">{student.role === 'ADMIN' ? 'ROOT ADMIN' : 'STUDENT'}</span></div>
-                <div>* Progress Matrix  : <span className="text-amber-400 font-bold">{progress.totalScore} PTS</span> ({progress.solvedCount} Solved • {progress.gamesPlayed} Arenas)</div>
-                <div>* System Status    : <span className="text-emerald-400 font-bold">OPERATIONAL (100%)</span></div>
-              </div>
-
-              <div className="pt-2 border-t border-zinc-800 text-[11px] text-zinc-400 flex flex-wrap items-center justify-between gap-2">
-                <span>Type <span className="text-cyan-400 font-bold font-mono">'help'</span> to view available commands.</span>
-                {workspaceData?.unreadMessageCount > 0 && (
-                  <span className="text-amber-400 font-bold animate-pulse">
-                    ⚠ {workspaceData.unreadMessageCount} DIRECT TRANSMISSION(S) RECEIVED — type 'messages'
+              {/* Telemetry Monospace Table (Clean, aligned, authentic CLI style) */}
+              <div className="bg-[#090d16]/70 border border-[#1c2638] p-3 text-[11px] space-y-2">
+                <div className="text-zinc-400 border-b border-[#1c2638] pb-1.5 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-cyan-400 font-bold">SYSTEM TELEMETRY &amp; OPERATOR PROFILE</span>
+                  <span className="text-emerald-400 font-bold flex items-center gap-1.5 text-[10px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    AUTHENTICATED &bull; ACTIVE
                   </span>
-                )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-zinc-300 font-mono">
+                  <div>* Operator Handle : <span className="text-cyan-300 font-bold">{promptUser}</span></div>
+                  <div>* University USN  : <span className="text-emerald-400 font-bold">{student.usn}</span></div>
+                  <div>* Academic Stream : <span className="text-zinc-300">Branch {student.branch} &bull; Section {student.section}</span></div>
+                  <div>* Security Role   : <span className="text-purple-300 font-bold">{student.role === 'ADMIN' ? 'ROOT ADMIN' : 'STUDENT OPERATOR'}</span></div>
+                  <div>* Progress Matrix : <span className="text-amber-400 font-bold">{progress.totalScore} PTS</span> ({progress.solvedCount} Solved &bull; {progress.gamesPlayed} Arenas)</div>
+                  <div>* System Uplink   : <span className="text-emerald-400 font-bold">ESTABLISHED (100%)</span></div>
+                </div>
+
+                <div className="border-t border-[#1c2638] pt-1.5 text-zinc-400 flex flex-wrap items-center justify-between gap-2">
+                  <span>Type <span className="text-cyan-400 font-bold">'help'</span> for manual, <span className="text-cyan-400 font-bold">'team'</span> for squad workspace.</span>
+                  {workspaceData?.unreadMessageCount > 0 && (
+                    <span className="text-amber-400 font-bold animate-pulse">
+                      ⚠ {workspaceData.unreadMessageCount} DIRECT TRANSMISSION(S) RECEIVED — type 'messages'
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -400,7 +410,7 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
           aria-label="Command Telemetry Panel"
           className={`transition-all duration-200 ease-out overflow-hidden flex flex-col shrink-0 z-20 ${
             activePanel 
-              ? 'w-[32%] min-w-[320px] max-w-[460px] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:w-full max-md:z-30 opacity-100 pointer-events-auto border-l-2 border-cyan-500/80 shadow-[-6px_0_24px_rgba(0,0,0,0.7)]' 
+              ? 'w-[32%] min-w-[320px] max-w-[460px] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:w-full max-md:z-30 opacity-100 pointer-events-auto border-l border-[#1c2638] bg-[#07090e]' 
               : 'w-0 min-w-0 max-w-0 opacity-0 pointer-events-none border-l-0'
           }`}
         >
@@ -409,14 +419,14 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
       </div>
 
       {/* PERMANENT TERMINAL ENTRY / COMMAND BAR — ALWAYS DOCKED AT THE BOTTOM */}
-      <div className="p-2.5 sm:p-3 bg-[#0a0d16] border-t-2 border-cyan-500/60 shadow-[0_-4px_16px_rgba(0,0,0,0.6)] shrink-0 z-30 w-full">
+      <div className="p-2.5 sm:p-3 bg-[#080b12] border-t border-[#1c2638] shrink-0 z-30 w-full">
         {activePanel && (
           <div className="flex items-center justify-between text-[11px] text-zinc-400 mb-1.5 select-none">
             <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
               <span>ACTIVE MODULE: <strong className="text-cyan-300 font-mono">/bin/{activePanel.name}</strong></span>
             </span>
-            <span className="text-[10px]">Press <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-700 text-zinc-200 text-[9px] font-mono">Esc</kbd> to return to full terminal</span>
+            <span className="text-[10px]">Press <kbd className="px-1.5 py-0.5 bg-[#121622] border border-[#1c2638] text-zinc-300 text-[9px] font-mono">Esc</kbd> to return to full terminal</span>
           </div>
         )}
 

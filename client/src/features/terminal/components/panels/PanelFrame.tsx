@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Terminal, X, CornerDownLeft } from 'lucide-react';
+import { Terminal, X } from 'lucide-react';
 
 interface PanelFrameProps {
   title: string;
@@ -29,27 +29,16 @@ export const PanelFrame: React.FC<PanelFrameProps> = ({
   }, [onClose]);
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#0b0e17] border-l-2 border-cyan-500/70 font-mono relative overflow-hidden select-text">
+    <div className="w-full h-full flex flex-col bg-[#090d16] border-l border-[#1c2638] font-mono relative overflow-hidden select-text">
       {/* Top Cyber Window Bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-[#121622] border-b-2 border-cyan-500/60 select-none shrink-0">
+      <div className="flex items-center justify-between px-3 h-8 bg-[#0e1422] border-b border-[#1c2638] select-none shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          {/* Linux dot controls */}
-          <div className="flex items-center gap-1.5 mr-1.5 shrink-0">
-            <button 
-              onClick={onClose}
-              className="w-2.5 h-2.5 bg-red-500 hover:bg-red-400 border border-red-700 cursor-pointer"
-              title="Close panel (Esc)"
-            />
-            <div className="w-2.5 h-2.5 bg-amber-500 border border-amber-700" />
-            <div className="w-2.5 h-2.5 bg-emerald-500 border border-emerald-700" />
-          </div>
-
-          <Terminal size={13} className="text-cyan-400 shrink-0" />
-          <span className="text-[11px] font-bold text-cyan-300 tracking-wider truncate">
+          <Terminal size={12} className="text-cyan-400 shrink-0" />
+          <span className="text-[10px] font-bold text-cyan-300 tracking-wider truncate">
             {path}
           </span>
           {badge && (
-            <span className="text-[9px] px-1.5 py-0.2 bg-cyan-950 border border-cyan-400/60 text-cyan-300 font-bold uppercase shrink-0">
+            <span className="text-[8px] px-1 py-0.2 bg-[#05070c] border border-cyan-500/50 text-cyan-300 font-bold uppercase shrink-0">
               {badge}
             </span>
           )}
@@ -58,40 +47,29 @@ export const PanelFrame: React.FC<PanelFrameProps> = ({
         <div className="flex items-center gap-2 shrink-0 ml-2">
           <button
             onClick={onClose}
-            className="flex items-center gap-1 px-2 py-0.5 bg-red-950/60 hover:bg-red-900 border border-red-500/70 text-red-300 text-[10px] font-bold transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-1.5 py-0.5 bg-[#141b2c] hover:bg-[#1a2338] border border-[#1c2638] hover:border-cyan-400 text-zinc-300 hover:text-cyan-300 text-[9px] font-bold transition-colors cursor-pointer"
             title="Close Panel and Return to Full Terminal (Esc)"
           >
-            <X size={11} />
+            <X size={10} />
             <span>ESC</span>
           </button>
         </div>
       </div>
 
       {/* Main Panel Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 terminal-scroll text-zinc-200 min-h-0">
-        <div className="space-y-4">
-          <div className="border-b border-zinc-800 pb-2 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-cyan-300 uppercase tracking-widest flex items-center gap-2 truncate">
-              <span className="text-fuchsia-400">▶</span>
+      <div className="flex-1 overflow-y-auto p-3 terminal-scroll text-zinc-200 min-h-0 bg-[#090d16]">
+        <div className="space-y-3">
+          <div className="border-b border-[#1c2638] pb-1.5 flex items-center justify-between">
+            <h2 className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5 truncate">
+              <span className="text-cyan-400">■</span>
               <span className="truncate">{title}</span>
             </h2>
-            <div className="text-[10px] text-zinc-500 font-mono shrink-0">
-              STATUS: <span className="text-emerald-400 font-bold">ONLINE</span>
+            <div className="text-[9px] text-zinc-500 font-mono shrink-0">
+              STATUS: <span className="text-emerald-400 font-bold">NOMINAL</span>
             </div>
           </div>
 
           {children}
-        </div>
-      </div>
-
-      {/* Bottom return hint bar */}
-      <div className="px-3 py-1 bg-[#07090f] border-t border-zinc-800/80 flex items-center justify-between text-[10px] text-zinc-500 select-none shrink-0">
-        <div className="flex items-center gap-1.5">
-          <CornerDownLeft size={10} className="text-cyan-400" />
-          <span>Press <kbd className="px-1 py-0.2 bg-zinc-800 border border-zinc-700 text-zinc-300 text-[9px]">Esc</kbd> to return</span>
-        </div>
-        <div className="text-[9px] text-zinc-600">
-          RESPONSIVE_HUD
         </div>
       </div>
     </div>
