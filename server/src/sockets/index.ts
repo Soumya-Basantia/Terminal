@@ -5,7 +5,33 @@ import jwt from 'jsonwebtoken';
 import { checkEventAuthorization } from '../utils/authorization';
 const JWT_SECRET = process.env.JWT_SECRET || 'terminal-secret-change-in-prod';
 
+let globalIo: Server | null = null;
+const userSockets = new Map<string, Set<string>>();
+
+export function setIO(io: Server): void {
+  globalIo = io;
+}
+
+export function getIO(): Server {
+  if (!globalIo) {
+    throw new Error('Socket.IO is not initialized yet');
+  }
+  return globalIo;
+}
+
+export function isUserOnline(userId: string): boolean {
+  const sockets = userSockets.get(userId);
+  return !!(sockets && sockets.size > 0);
+}
+
+export function getUserSocketIds(userId: string): string[] {
+  const sockets = userSockets.get(userId);
+  return sockets ? Array.from(sockets) : [];
+}
+
 export function setupSocketHandlers(io: Server): void {
+  setIO(io);
+
   io.use((socket, next) => {
     const { token, isStage } = socket.handshake.auth;
 
@@ -26,8 +52,41 @@ export function setupSocketHandlers(io: Server): void {
     }
   });
 
-  io.on('connection', (socket: Socket) => {
-    console.log(`[Socket] Connected: ${socket.id}, User: ${socket.data.userId}`);
+  io.on('connection', async (socket: Socket) => {
+    const userId = socket.data.userId;
+    console.log(`[Socket] Connected: ${socket.id}, User: ${userId}`);
+
+    if (userId) {
+      socket.join(`user:${userId}`);
+      let userSet = userSockets.get(userId);
+      if (!userSet) {
+        userSet = new Set();
+        userSockets.set(userId, userSet);
+      }
+      userSet.add(socket.id);
+
+      // Auto-join active team room if player belongs to a team
+      try {
+        const membership = await prisma.teamMember.findFirst({
+          where: { userId },
+          include: { user: { select: { username: true } }, team: true }
+        });
+        if (membership) {
+          socket.join(`team:${membership.teamId}`);
+          socket.data.teamId = membership.teamId;
+
+          if (userSet.size === 1) {
+            io.to(`team:${membership.teamId}`).emit('team:presence', {
+              userId,
+              handle: `${membership.user.username}@terminal`,
+              status: 'ONLINE'
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error auto-joining team room:', err);
+      }
+    }
 
     // ── HOST JOINS ───────────────────────────────────────────────────────
     socket.on('host:join', async (data: { roomCode?: string; sessionCode?: string }) => {
@@ -558,9 +617,131 @@ export function setupSocketHandlers(io: Server): void {
       io.to(`session:${code}`).emit('session_state_update', state);
     });
 
+    // ── REAL-TIME TEAM CHAT ──────────────────────────────────────────────
+    socket.on('team:join', async (data?: { teamId?: string }) => {
+      const userId = socket.data.userId;
+      if (!userId) {
+        socket.emit('team:error', { message: 'Authentication required' });
+        return;
+      }
+
+      const membership = await prisma.teamMember.findFirst({
+        where: {
+          userId,
+          ...(data?.teamId ? { teamId: data.teamId } : {})
+        },
+        include: {
+          team: true,
+          user: { select: { username: true, name: true } }
+        }
+      });
+
+      if (!membership) {
+        socket.emit('team:error', { message: 'Not a member of this team' });
+        return;
+      }
+
+      const teamId = membership.teamId;
+      socket.join(`team:${teamId}`);
+      socket.data.teamId = teamId;
+
+      socket.emit('team:joined', {
+        teamId,
+        teamName: membership.team.name,
+        handle: `${membership.user.username}@terminal`
+      });
+
+      io.to(`team:${teamId}`).emit('team:presence', {
+        userId,
+        handle: `${membership.user.username}@terminal`,
+        status: 'ONLINE'
+      });
+    });
+
+    socket.on('team:send_message', async (data: { content: string; teamId?: string }) => {
+      const userId = socket.data.userId;
+      if (!userId) {
+        socket.emit('team:error', { message: 'Authentication required' });
+        return;
+      }
+
+      const content = (data?.content || '').trim();
+      if (!content) return;
+
+      if (content.length > 1000) {
+        socket.emit('team:error', { message: 'Message exceeds 1000 characters limit' });
+        return;
+      }
+
+      // Authoritative lookup: verify caller's team membership from server DB
+      const membership = await prisma.teamMember.findFirst({
+        where: {
+          userId,
+          ...(data?.teamId ? { teamId: data.teamId } : {})
+        },
+        include: {
+          team: true,
+          user: { select: { username: true, name: true } }
+        }
+      });
+
+      if (!membership) {
+        socket.emit('team:error', { message: 'You are not authorized to send messages to this team' });
+        return;
+      }
+
+      const teamId = membership.teamId;
+      const senderHandle = `${membership.user.username}@terminal`;
+      const senderName = membership.user.name || membership.user.username;
+
+      const msg = await prisma.teamMessage.create({
+        data: {
+          teamId,
+          senderId: userId,
+          content
+        }
+      });
+
+      const messagePayload = {
+        id: msg.id,
+        teamId,
+        senderHandle,
+        senderName,
+        content,
+        createdAt: msg.createdAt.toISOString()
+      };
+
+      // Broadcast exclusively to team channel
+      io.to(`team:${teamId}`).emit('team:message', messagePayload);
+    });
+
+    socket.on('team:leave_channel', (data?: { teamId?: string }) => {
+      const teamId = data?.teamId || socket.data.teamId;
+      if (teamId) {
+        socket.leave(`team:${teamId}`);
+      }
+    });
+
     // ── DISCONNECT ────────────────────────────────────────────────────────
     socket.on('disconnect', async () => {
       console.log(`[Socket] Disconnected: ${socket.id}`);
+
+      const uid = socket.data.userId;
+      if (uid) {
+        const uSet = userSockets.get(uid);
+        if (uSet) {
+          uSet.delete(socket.id);
+          if (uSet.size === 0) {
+            userSockets.delete(uid);
+            if (socket.data.teamId) {
+              io.to(`team:${socket.data.teamId}`).emit('team:presence', {
+                userId: uid,
+                status: 'OFFLINE'
+              });
+            }
+          }
+        }
+      }
 
       if (socket.data.role === 'PLAYER' && socket.data.sessionPlayerId) {
         await prisma.sessionPlayer.update({

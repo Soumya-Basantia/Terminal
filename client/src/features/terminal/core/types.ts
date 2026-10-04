@@ -11,6 +11,9 @@ export type TerminalContext = {
   closePanel?: () => void;
   activePanel?: string | null;
   workspaceData?: any;
+  openTeamChat?: () => void;
+  closeTeamChat?: () => void;
+  isTeamChatOpen?: boolean;
 };
 
 export type CommandDefinition = {

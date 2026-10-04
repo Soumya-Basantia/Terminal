@@ -13,6 +13,8 @@ import clubRoutes from './routes/clubs';
 import workspaceRoutes from './routes/workspace';
 import messageRoutes from './routes/messages';
 import reportRoutes from './routes/reports';
+import teamRoutes from './routes/teams';
+import collabRoutes from './routes/collab';
 import { setupSocketHandlers } from './sockets';
 import { errorHandler } from './middleware/errorHandler';
 import { ensureAdminUser } from './lib/adminInit';
@@ -49,6 +51,8 @@ app.use('/api/clubs', clubRoutes);
 app.use('/api/workspace', workspaceRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/teams', teamRoutes);
+app.use('/api/collab', collabRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

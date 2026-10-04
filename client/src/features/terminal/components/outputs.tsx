@@ -1,19 +1,29 @@
 import React from 'react';
+import { TerminalSprite } from '../sprites/TerminalSprite';
 
 export const TerminalText = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
   <div className={`text-zinc-300 font-mono ${className}`}>{children}</div>
 );
 
 export const TerminalSuccess = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-emerald-400 font-mono">✓ {children}</div>
+  <div className="flex items-center gap-2 text-emerald-400 font-mono">
+    <TerminalSprite animation="success" size={16} loop={false} className="shrink-0" />
+    <span>✓ {children}</span>
+  </div>
 );
 
 export const TerminalWarning = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-amber-400 font-mono">⚠ {children}</div>
+  <div className="flex items-center gap-2 text-amber-400 font-mono">
+    <TerminalSprite animation="warning" size={16} className="shrink-0" />
+    <span>⚠ {children}</span>
+  </div>
 );
 
 export const TerminalError = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-rose-400 font-mono">✕ {children}</div>
+  <div className="flex items-center gap-2 text-rose-400 font-mono">
+    <TerminalSprite animation="error" size={16} loop={false} className="shrink-0" />
+    <span>✕ {children}</span>
+  </div>
 );
 
 export const TerminalSection = ({ title }: { title: string }) => (

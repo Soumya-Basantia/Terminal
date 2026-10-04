@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&family=Orbitron:wght@700;800;900&display=swap');
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════
@@ -88,10 +88,10 @@
 }
 
 /* ── Base ──────────────────────────────────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
 }
 
 html {
@@ -153,6 +153,26 @@ body::after {
 /* ── Typography ────────────────────────────────────────── */
 .font-mono {
   font-family: var(--font-mono) !important;
+}
+
+/* ── Autofill Dark Override ─────────────────────────────── */
+/* Browsers force a white/yellow background on autocompleted fields.
+   Box-shadow inset trick masks the forced background; text-fill-color
+   keeps the text readable on our dark surface. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #06080d inset !important;
+  box-shadow: 0 0 0 1000px #06080d inset !important;
+  -webkit-text-fill-color: #e6edf3 !important;
+  transition: background-color 99999s ease-in-out 0s;
+  caret-color: #00E5FF;
+}
+
+input:-webkit-autofill::first-line {
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  font-size: 0.875rem;
 }
 
 .text-gradient {

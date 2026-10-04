@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { PanelFrame } from './PanelFrame';
-import { Mail, MessageSquare, Check, ShieldAlert, Clock, RefreshCw } from 'lucide-react';
+import { Mail, MessageSquare, Check, ShieldAlert, Clock } from 'lucide-react';
 import api from '../../../../lib/api';
+import { TerminalEmpty } from '../TerminalSystemState';
 
 interface MessagesPanelProps {
   data: any;
@@ -53,19 +54,23 @@ export const MessagesPanel: React.FC<MessagesPanelProps> = ({ data, onClose }) =
           <button
             onClick={fetchMessages}
             disabled={loading}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-cyan-300 text-xs border border-zinc-700"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-cyan-300 text-xs border border-zinc-700 disabled:opacity-50"
           >
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            <span>SYNC INBOX</span>
+            {loading
+              ? <span className="terminal-glyph text-cyan-400" aria-hidden="true" />
+              : <span className="text-cyan-400">↺</span>
+            }
+            <span>{loading ? 'SYNCING' : 'SYNC INBOX'}</span>
           </button>
         </div>
 
         {messages.length === 0 ? (
-          <div className="bg-[#121622] border-2 border-zinc-800 p-8 text-center text-zinc-500 font-mono text-xs flex flex-col items-center gap-2">
-            <MessageSquare size={24} className="text-zinc-600" />
-            <span>No incoming direct transmissions recorded.</span>
-            <span className="text-[10px] text-zinc-600">Messages sent by administrators will appear here.</span>
-          </div>
+          <TerminalEmpty
+            title="NO TRANSMISSIONS"
+            hint="inbox"
+          >
+            No incoming direct transmissions recorded. Messages sent by administrators will appear here.
+          </TerminalEmpty>
         ) : (
           <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
             {messages.map(msg => (

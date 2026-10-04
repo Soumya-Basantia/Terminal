@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { connectSocket, disconnectSocket } from '../lib/socket';
 import type { SessionStatePayload, Player, Team } from '../types';
-import { Users, Terminal, Wifi, WifiOff, UserCircle, Radio } from 'lucide-react';
+import { Users, Terminal, Radio, UserCircle } from 'lucide-react';
 import api from '../lib/api';
+import { TerminalStatus } from '../features/terminal/components/TerminalSystemState';
 
 export default function LobbyPage() {
   const { sessionCode } = useParams<{ sessionCode: string }>();
@@ -104,11 +105,7 @@ export default function LobbyPage() {
             </div>
             <span className="font-mono font-black text-sm tracking-tight text-white">TERMINAL</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-bold">
-            {connected
-              ? <><Wifi size={12} className="text-[var(--term-green)]" /><span className="text-[var(--term-green)]">CONNECTED</span></>
-              : <><WifiOff size={12} className="text-[var(--term-red)]" /><span className="text-[var(--term-red)]">RECONNECTING</span></>}
-          </div>
+          <TerminalStatus status={connected ? 'online' : 'reconnecting'} label={connected ? 'CONNECTED' : 'RECONNECTING'} />
         </div>
 
         {/* Main lobby card */}
@@ -159,7 +156,7 @@ export default function LobbyPage() {
             </div>
 
             {/* Waiting indicator */}
-            <div className="flex items-center justify-center gap-2 text-[var(--term-text-muted)] text-xs animate-pulse">
+            <div className="flex items-center justify-center gap-2 text-[var(--term-text-muted)] text-xs terminal-signal">
               <Radio size={12} />
               <span className="uppercase tracking-widest font-bold">AWAITING GAME MASTER SIGNAL</span>
             </div>

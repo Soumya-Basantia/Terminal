@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { commandRegistry } from '../core/registry';
+import { TerminalSprite } from '../sprites/TerminalSprite';
 
 interface TerminalInputProps {
   username: string;
@@ -7,6 +8,7 @@ interface TerminalInputProps {
   onClear: () => void;
   onEscape?: () => void;
   placeholder?: string;
+  isExecuting?: boolean;
 }
 
 export const TerminalInput: React.FC<TerminalInputProps> = ({ 
@@ -14,7 +16,8 @@ export const TerminalInput: React.FC<TerminalInputProps> = ({
   onCommand, 
   onClear,
   onEscape,
-  placeholder 
+  placeholder,
+  isExecuting = false,
 }) => {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([]);
@@ -107,9 +110,16 @@ export const TerminalInput: React.FC<TerminalInputProps> = ({
 
   return (
     <div className="flex items-center text-zinc-100 font-mono w-full text-xs sm:text-sm">
-      <span className="text-emerald-400 font-bold mr-2 select-none whitespace-nowrap">
-        {username}@terminal:~$
-      </span>
+      <div className="flex items-center mr-2 shrink-0">
+        {isExecuting ? (
+          <TerminalSprite animation="processing" size={16} className="mr-1.5 shrink-0" />
+        ) : (
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-2 shrink-0 animate-pulse" />
+        )}
+        <span className="text-emerald-400 font-bold select-none whitespace-nowrap">
+          {username}@terminal:~$
+        </span>
+      </div>
       <div className="flex-1 flex items-center relative min-w-0">
         <input
           ref={inputRef}
@@ -120,10 +130,11 @@ export const TerminalInput: React.FC<TerminalInputProps> = ({
           className="w-full bg-transparent border-none outline-none text-zinc-100 focus:ring-0 p-0 shadow-none caret-cyan-400 font-mono text-xs sm:text-sm"
           spellCheck={false}
           autoComplete="off"
-          placeholder={placeholder || ''}
+          placeholder={isExecuting ? 'Processing command...' : (placeholder || '')}
+          disabled={isExecuting}
           autoFocus
         />
-        {input.length === 0 && (
+        {input.length === 0 && !isExecuting && (
           <span className="inline-block w-2 h-4 bg-cyan-400 animate-pulse pointer-events-none select-none -ml-px" />
         )}
       </div>

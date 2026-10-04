@@ -10,3 +10,5 @@ export { HelpPanel } from './HelpPanel';
 export { BattlePanel } from './BattlePanel';
 export { CollabPanel } from './CollabPanel';
 export { MessagesPanel } from './MessagesPanel';
+export { WonPanel } from './WonPanel';
+export { InboxPanel } from './InboxPanel';

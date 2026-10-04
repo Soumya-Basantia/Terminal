@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { connectSocket } from '../lib/socket';
 import type { SafeChallenge, SessionStatePayload, LeaderboardEntry } from '../types';
-import { Wifi, WifiOff, Trophy, CheckCircle, XCircle } from 'lucide-react';
+import { Trophy, Wifi, WifiOff, CheckCircle, XCircle } from 'lucide-react';
 import LogicHeistChallenge from '../components/LogicHeistChallenge';
 import BugHuntChallenge from '../components/BugHuntChallenge';
 import WitnessChallenge from '../components/WitnessChallenge';
@@ -11,6 +11,8 @@ import MissionChallenge from '../components/MissionChallenge';
 import RouterChallenge from '../components/RouterChallenge';
 import ThresholdChallenge from '../components/ThresholdChallenge';
 import api from '../lib/api';
+import { TeamChatBox } from '../features/terminal/components/TeamChatBox';
+import { TerminalLoading, TerminalWarning, TerminalOutputError } from '../features/terminal/components/TerminalSystemState';
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 
@@ -266,10 +268,13 @@ export default function PlayPage() {
   // ── PAUSED ────────────────────────────────────────────────
   if (gameState === 'PAUSED') {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-        <div style={{ fontSize: 48 }}>⏸</div>
-        <h2 style={{ fontSize: 24, fontWeight: 700 }}>Game Paused</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>The Game Master has paused the game. Hang tight...</p>
+      <div className="min-h-screen bg-[#050608] flex items-center justify-center p-8 font-mono">
+        <div className="max-w-sm w-full">
+          <TerminalWarning title="GAME PAUSED // STANDBY">
+            <div>The Game Master has paused the session.</div>
+            <div className="text-zinc-500 text-[11px] mt-1">Hang tight — the arena will resume shortly.</div>
+          </TerminalWarning>
+        </div>
       </div>
     );
   }
@@ -311,11 +316,13 @@ export default function PlayPage() {
   // ── ACTIVE CHALLENGE ──────────────────────────────────────
   if (!currentChallenge) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-        <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid var(--accent-primary)', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
-        <p style={{ color: 'var(--text-secondary)' }}>
-          {!connected ? 'Reconnecting...' : 'Waiting for next challenge...'}
-        </p>
+      <div className="min-h-screen bg-[#050608] flex items-center justify-center p-8 font-mono">
+        <div className="max-w-sm w-full">
+          <TerminalLoading
+            label={!connected ? 'RECONNECTING TO ARENA' : 'AWAITING NEXT CHALLENGE'}
+            node={`/arena/${code}`}
+          />
+        </div>
       </div>
     );
   }
@@ -603,6 +610,9 @@ export default function PlayPage() {
           <TimerRing endsAt={currentChallenge.challengeEndsAt} timerSecs={currentChallenge.timerSecs} />
         </div>
       )}
+
+      {/* Real-time Team Chat Dock for Live Games */}
+      <TeamChatBox isOpen={false} onClose={() => {}} isGameMode={true} roomCode={code} />
     </div>
   );
 }

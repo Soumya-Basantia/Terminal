@@ -57,6 +57,18 @@ enum TeamMemberRole {
   MEMBER
 }
 
+enum CollabRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum TeamInviteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 enum GameTemplate {
   QUIZ
   RAPID_FIRE
@@ -181,6 +193,13 @@ model User {
   reportedReports  Report[]        @relation("ReportedUser")
   handledReports   Report[]        @relation("HandledReports")
   auditLogs        AuditLog[]      @relation("AdminAuditLogs")
+  collaborations        Collaboration[]        @relation("UserCollaborations")
+  peerCollaborations    Collaboration[]        @relation("PeerCollaborations")
+  sentCollabRequests    CollaborationRequest[] @relation("SentCollabRequests")
+  receivedCollabRequests CollaborationRequest[] @relation("ReceivedCollabRequests")
+  sentTeamInvites       TeamInvitation[]       @relation("SentTeamInvites")
+  receivedTeamInvites   TeamInvitation[]       @relation("ReceivedTeamInvites")
+  teamMessages          TeamMessage[]          @relation("TeamMessages")
 
   @@map("users")
 }
@@ -252,6 +271,8 @@ model Team {
   members        TeamMember[]
   sessionPlayers SessionPlayer[]
   Submission     Submission[]
+  invitations    TeamInvitation[]
+  messages       TeamMessage[]
 
   @@map("teams")
 }
@@ -268,6 +289,68 @@ model TeamMember {
 
   @@unique([teamId, userId])
   @@map("team_members")
+}
+
+model TeamInvitation {
+  id         String           @id @default(cuid())
+  teamId     String
+  senderId   String
+  receiverId String
+  status     TeamInviteStatus @default(PENDING)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  team     Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sender   User @relation("SentTeamInvites", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedTeamInvites", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, receiverId])
+  @@map("team_invitations")
+}
+
+model TeamMessage {
+  id        String   @id @default(cuid())
+  teamId    String
+  senderId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  team   Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sender User @relation("TeamMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("team_messages")
+}
+
+// ─────────────────────────────────────────
+// COLLABORATION
+// ─────────────────────────────────────────
+
+model Collaboration {
+  id        String   @id @default(cuid())
+  userId    String
+  peerId    String
+  createdAt DateTime @default(now())
+
+  user User @relation("UserCollaborations", fields: [userId], references: [id], onDelete: Cascade)
+  peer User @relation("PeerCollaborations", fields: [peerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, peerId])
+  @@map("collaborations")
+}
+
+model CollaborationRequest {
+  id         String              @id @default(cuid())
+  senderId   String
+  receiverId String
+  status     CollabRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  sender   User @relation("SentCollabRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedCollabRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@map("collaboration_requests")
 }
 
 // ─────────────────────────────────────────
