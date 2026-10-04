@@ -41,17 +41,20 @@ export const WhoamiPanel: React.FC<WhoamiPanelProps> = ({ data, onClose }) => {
               {student.name.slice(0, 2).toUpperCase()}
             </div>
             <div>
+              <div className="text-sm font-mono text-emerald-400 font-bold">
+                {(student.username || student.name || 'student').toLowerCase().split(' ')[0].replace(/[^a-z0-9_-]/g, '')}@terminal
+              </div>
               <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
                 <span>{student.name}</span>
-                <span className="text-xs px-2 py-0.5 bg-cyan-950 border border-cyan-500 text-cyan-300">
+                <span className="text-xs px-2 py-0.5 bg-cyan-950 border border-cyan-500 text-cyan-300 font-mono">
                   {student.usn}
                 </span>
               </h3>
               <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5">
                 <ShieldCheck size={13} className="text-emerald-400" />
-                <span className="text-emerald-400 font-bold">AUTHENTICATED STUDENT</span>
+                <span className="text-emerald-400 font-bold">ONLINE / ACTIVE</span>
                 <span>•</span>
-                <span>{roleDisplay}</span>
+                <span className="text-purple-300 font-bold">{roleDisplay}</span>
               </div>
             </div>
           </div>
@@ -60,38 +63,41 @@ export const WhoamiPanel: React.FC<WhoamiPanelProps> = ({ data, onClose }) => {
             <div className="bg-[#0b0e17] p-2.5 border border-zinc-800 flex items-start gap-2.5">
               <Mail size={16} className="text-cyan-400 mt-0.5" />
               <div>
-                <span className="text-zinc-500 block text-[10px] uppercase">EMAIL ADDRESS</span>
-                <span className="text-zinc-200 font-medium">{student.email}</span>
+                <span className="text-zinc-500 block text-[10px] uppercase font-bold">TERMINAL HANDLE</span>
+                <span className="text-emerald-400 font-mono font-bold">
+                  {(student.username || student.name || 'student').toLowerCase().split(' ')[0].replace(/[^a-z0-9_-]/g, '')}@terminal
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-[#0b0e17] p-2.5 border border-zinc-800 flex items-start gap-2.5">
+              <BookOpen size={16} className="text-amber-400 mt-0.5" />
+              <div>
+                <span className="text-zinc-500 block text-[10px] uppercase font-bold">CLUB / WORKSPACE</span>
+                <span className="text-amber-300 font-bold">{student.club || 'CODENEX // DEPT OF CSE'}</span>
               </div>
             </div>
 
             <div className="bg-[#0b0e17] p-2.5 border border-zinc-800 flex items-start gap-2.5">
               <BookOpen size={16} className="text-emerald-400 mt-0.5" />
               <div>
-                <span className="text-zinc-500 block text-[10px] uppercase">ACADEMIC STREAM</span>
+                <span className="text-zinc-500 block text-[10px] uppercase font-bold">ACADEMIC STREAM</span>
                 <span className="text-zinc-200 font-medium">Branch {student.branch} • Section {student.section}</span>
-              </div>
-            </div>
-
-            <div className="bg-[#0b0e17] p-2.5 border border-zinc-800 flex items-start gap-2.5">
-              <Layers size={16} className="text-purple-400 mt-0.5" />
-              <div>
-                <span className="text-zinc-500 block text-[10px] uppercase">ROLE PERMISSIONS</span>
-                <span className="text-purple-300 font-medium">{roleDisplay}</span>
               </div>
             </div>
 
             <div className="bg-[#0b0e17] p-2.5 border border-zinc-800 flex items-start gap-2.5">
               <ShieldCheck size={16} className="text-cyan-400 mt-0.5" />
               <div>
-                <span className="text-zinc-500 block text-[10px] uppercase">SECURITY LEVEL</span>
-                <span className="text-emerald-400 font-medium">LEVEL 1 / WORKSPACE ACCESS</span>
+                <span className="text-zinc-500 block text-[10px] uppercase font-bold">SESSION STATE</span>
+                <span className="text-emerald-400 font-medium">ACTIVE (LEVEL 1 CLEARANCE)</span>
               </div>
             </div>
           </div>
 
-          <div className="mt-3 pt-3 border-t border-zinc-800 text-[11px] text-zinc-500">
-            INTERNAL ID: <span className="text-zinc-400 font-mono">{student.id}</span>
+          <div className="mt-3 pt-3 border-t border-zinc-800 text-[11px] text-zinc-500 flex items-center justify-between">
+            <span>EMAIL: <span className="text-zinc-300 font-mono">{student.email}</span></span>
+            <span>STATUS: <span className="text-emerald-400 font-bold">ONLINE</span></span>
           </div>
         </div>
 

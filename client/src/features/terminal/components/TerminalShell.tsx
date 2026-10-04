@@ -276,7 +276,9 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
         {/* Left Command Rail (Visual HUD Reference) */}
         <CommandRail 
           activePanel={activePanel?.name} 
+          activePanelData={activePanel?.data}
           unreadCount={workspaceData?.unreadMessageCount} 
+          onSelectCommand={(cmd) => handleCommand(cmd)}
         />
 
         {/* Central Terminal Workspace */}
@@ -292,8 +294,8 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
             {/* Primary Pixel Logo */}
             <TerminalLogo className="py-1" />
 
-            {/* Linux MOTD & Verified Student Identity */}
-            <div className="bg-[#0e121c]/95 border-2 border-cyan-500/50 p-3 sm:p-4 text-xs space-y-2.5 shadow-[4px_4px_0px_#000]">
+            {/* Linux Native Boot Telemetry & Verified Student Identity */}
+            <div className="bg-[#090d16] border-2 border-cyan-500/50 p-3 sm:p-4 text-xs space-y-2 shadow-[4px_4px_0px_#000]">
               <div className="text-cyan-400 font-bold border-b border-zinc-800 pb-2 flex flex-wrap items-center justify-between gap-2">
                 <span className="tracking-wider">TERMINAL-OS v3.4.0 (x86_64-cybercore-linux-gnu)</span>
                 <span className="text-[10px] px-2 py-0.5 bg-emerald-950 border border-emerald-400/80 text-emerald-300 font-bold tracking-widest uppercase">
@@ -301,8 +303,13 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
                 </span>
               </div>
 
-              <div className="text-zinc-200 font-mono">
-                Welcome back, <span className="text-cyan-300 font-bold">{student.name}</span>. Student workspace online.
+              {/* Native Terminal Boot Telemetry Sequence */}
+              <div className="font-mono text-[11px] space-y-0.5 text-zinc-400 border-b border-zinc-800/80 pb-2 select-text">
+                <div>&gt; INITIALIZING CORE ................................ <span className="text-emerald-400 font-bold">OK</span></div>
+                <div>&gt; AUTHENTICATING [USN: {student.usn}] ............... <span className="text-emerald-400 font-bold">OK</span></div>
+                <div>&gt; LOADING WORKSPACE [{promptUser}@terminal] ........ <span className="text-emerald-400 font-bold">OK</span></div>
+                <div>&gt; CONNECTING NETWORK [cybercore.terminal.edu] ....... <span className="text-emerald-400 font-bold">OK</span></div>
+                <div className="text-cyan-300 font-bold pt-1">TERMINAL READY_</div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-zinc-300 pt-1 font-mono text-[11px]">
@@ -374,7 +381,7 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
           aria-label="Command Telemetry Panel"
           className={`transition-all duration-300 ease-in-out overflow-hidden flex flex-col shrink-0 ${
             activePanel 
-              ? 'w-[44%] min-w-[380px] max-w-[620px] opacity-100 pointer-events-auto border-l-2 border-cyan-500/80 shadow-[-6px_0_24px_rgba(0,0,0,0.7)]' 
+              ? 'md:w-[44%] md:min-w-[380px] md:max-w-[620px] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:w-full max-md:z-30 opacity-100 pointer-events-auto border-l-2 border-cyan-500/80 shadow-[-6px_0_24px_rgba(0,0,0,0.7)]' 
               : 'w-0 min-w-0 max-w-0 opacity-0 pointer-events-none border-l-0'
           }`}
         >

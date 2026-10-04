@@ -16,29 +16,40 @@ export const whoamiCommand: CommandDefinition = {
       const response = await api.get('/workspace/student');
       const { student, progress } = response.data;
       
-      const role = student.role === 'GAME_MASTER' ? 'Game Master' : student.role === 'ADMIN' ? 'Root Admin' : 'Student (Player)';
+      const rawUser = student.username || student.name || 'student';
+      const cleanHandle = rawUser.toLowerCase().trim().split(' ')[0].replace(/[^a-z0-9_-]/g, '') + '@terminal';
+      const roleStr = student.role === 'GAME_MASTER' ? 'GAME MASTER' : student.role === 'ADMIN' ? 'ROOT ADMIN' : 'STUDENT';
+      const clubStr = student.club || 'CODENEX';
 
-      return React.createElement('div', { className: 'font-mono text-xs' },
-        React.createElement(TerminalSection, { title: 'STUDENT IDENTITY TELEMETRY' }),
-        React.createElement('div', { className: 'grid grid-cols-[140px_1fr] gap-1 ml-2' },
-          React.createElement('span', { className: 'text-zinc-400' }, 'Name:'),
-          React.createElement('span', { className: 'text-cyan-400 font-bold' }, student.name),
+      return React.createElement('div', { className: 'font-mono text-xs my-1 select-text' },
+        React.createElement('div', { className: 'text-cyan-400 font-bold tracking-wider' }, 'IDENTITY'),
+        React.createElement('div', { className: 'text-cyan-500/60 select-none' }, '──────────────────────────────────────────'),
+        React.createElement('div', { className: 'grid grid-cols-[90px_1fr] gap-x-2 gap-y-0.5 text-zinc-200' },
+          React.createElement('span', { className: 'text-zinc-500 font-bold' }, 'HANDLE'),
+          React.createElement('span', { className: 'text-emerald-400 font-bold' }, cleanHandle),
 
-          React.createElement('span', { className: 'text-zinc-400' }, 'USN:'),
-          React.createElement('span', { className: 'text-emerald-400 font-bold' }, student.usn),
-          
-          React.createElement('span', { className: 'text-zinc-400' }, 'Email:'),
-          React.createElement('span', { className: 'text-zinc-200' }, student.email),
+          React.createElement('span', { className: 'text-zinc-500 font-bold' }, 'ROLE'),
+          React.createElement('span', { className: 'text-purple-300 font-bold' }, roleStr),
 
-          React.createElement('span', { className: 'text-zinc-400' }, 'Academic:'),
-          React.createElement('span', { className: 'text-zinc-200' }, `Branch ${student.branch} • Sec ${student.section}`),
-          
-          React.createElement('span', { className: 'text-zinc-400' }, 'Clearance:'),
-          React.createElement('span', { className: 'text-emerald-400 font-bold' }, 'LEVEL 1 / AUTHENTICATED'),
-          
-          React.createElement('span', { className: 'text-zinc-400 mt-1' }, 'Verified Score:'),
-          React.createElement('span', { className: 'text-cyan-400 font-bold mt-1' }, `${progress.totalScore} PTS`)
-        )
+          React.createElement('span', { className: 'text-zinc-500 font-bold' }, 'STATUS'),
+          React.createElement('span', { className: 'text-cyan-300 font-bold' }, 'ONLINE'),
+
+          React.createElement('span', { className: 'text-zinc-500 font-bold' }, 'CLUB'),
+          React.createElement('span', { className: 'text-amber-300 font-bold' }, clubStr),
+
+          React.createElement('span', { className: 'text-zinc-500 font-bold' }, 'SESSION'),
+          React.createElement('span', { className: 'text-emerald-300 font-bold' }, 'ACTIVE'),
+
+          React.createElement('span', { className: 'text-zinc-500 font-bold' }, 'USN'),
+          React.createElement('span', { className: 'text-zinc-100 font-bold' }, student.usn || 'AUTHENTICATED'),
+
+          React.createElement('span', { className: 'text-zinc-500 font-bold' }, 'STREAM'),
+          React.createElement('span', { className: 'text-zinc-300' }, `${student.branch || 'CSE'}-${student.section || 'A'}`),
+
+          React.createElement('span', { className: 'text-zinc-500 font-bold' }, 'SCORE'),
+          React.createElement('span', { className: 'text-cyan-400 font-bold' }, `${progress?.totalScore ?? 0} PTS`)
+        ),
+        React.createElement('div', { className: 'text-cyan-500/60 select-none' }, '──────────────────────────────────────────')
       );
     } catch {
       return React.createElement(TerminalSuccess, null, 'Opening student identity telemetry panel...');

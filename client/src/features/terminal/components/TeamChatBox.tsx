@@ -220,14 +220,15 @@ export const TeamChatBox: React.FC<TeamChatBoxProps> = ({
     <div 
       className={`font-mono transition-all duration-300 ease-out z-40 select-text ${
         isGameMode
-          ? 'fixed bottom-0 left-0 right-0 max-w-3xl mx-auto border-t-2 border-cyan-500/80 shadow-[0_-8px_30px_rgba(0,0,0,0.8)] bg-[#07090f]'
+          ? 'fixed bottom-0 left-0 right-0 max-w-3xl mx-auto border-2 border-cyan-500/80 shadow-[0_-8px_30px_rgba(0,0,0,0.8)] bg-[#07090f]'
           : 'w-full border-t-2 border-cyan-500/80 bg-[#07090f] shadow-[0_-8px_24px_rgba(0,0,0,0.7)] animate-in slide-in-from-bottom-6 duration-200'
       }`}
       style={{ maxHeight: isGameMode ? '280px' : '260px' }}
     >
       {/* Top Channel Bar */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0e121c] border-b-2 border-cyan-500/60 select-none">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0e121c] border-b border-cyan-500/60 select-none">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-cyan-400 font-bold text-sm">┌</span>
           {socketStatus === 'reconnecting' ? (
             <TerminalSprite animation="reconnecting" size={15} className="shrink-0" />
           ) : socketStatus === 'offline' ? (
@@ -235,20 +236,21 @@ export const TeamChatBox: React.FC<TeamChatBoxProps> = ({
           ) : (
             <TerminalSprite animation="network" size={15} className="shrink-0" />
           )}
-          <span className="text-xs font-bold text-cyan-300 tracking-wider">
-            // TEAM CHANNEL :: {team.name.toUpperCase()}
+          <span className="text-xs font-bold text-cyan-300 tracking-wider truncate">
+            TEAM CHANNEL :: {team.name.toUpperCase()}
           </span>
-          <span className="text-[10px] text-emerald-400 font-bold px-1.5 py-0.2 bg-emerald-950 border border-emerald-500/50">
+          <span className="hidden sm:inline text-cyan-700 select-none">──────────────────────</span>
+          <span className="text-[10px] text-emerald-400 font-bold px-1.5 py-0.2 bg-emerald-950 border border-emerald-500/50 shrink-0">
             ● {team.membersCount} IN SQUAD
           </span>
           {socketStatus !== 'online' && (
-            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">
+            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider shrink-0">
               [{socketStatus}]
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="text-[10px] text-zinc-500 hidden sm:inline">
             Press <kbd className="px-1 py-0.2 bg-zinc-800 border border-zinc-700 text-zinc-300 text-[9px]">Esc</kbd> to minimize
           </span>
@@ -262,48 +264,59 @@ export const TeamChatBox: React.FC<TeamChatBoxProps> = ({
           >
             <Minimize2 size={13} />
           </button>
+          <span className="text-cyan-400 font-bold text-sm">┐</span>
         </div>
       </div>
 
       {/* Message Feed Stream */}
       <div 
         ref={scrollRef}
-        className="overflow-y-auto p-3 terminal-scroll space-y-2 text-xs"
-        style={{ height: isGameMode ? '170px' : '150px' }}
+        className="overflow-y-auto p-3 terminal-scroll space-y-1.5 text-xs bg-[#07090e]"
+        style={{ height: isGameMode ? '160px' : '140px' }}
       >
         {messages.length === 0 ? (
           <div className="text-zinc-600 text-[11px] py-4 text-center">
-            [TEAM CHANNEL ESTABLISHED] No messages transmitted yet. Type below to communicate with squad operatives.
+            [TEAM CHANNEL ESTABLISHED] No transmissions yet. Use the prompt below to coordinate with squad.
           </div>
         ) : (
           messages.map((m) => {
             const time = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             return (
-              <div key={m.id} className="flex items-baseline justify-between gap-3 text-xs leading-relaxed">
+              <div key={m.id} className="flex items-baseline justify-between gap-3 text-xs leading-relaxed px-1">
                 <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="text-cyan-400 font-bold select-none shrink-0">
-                    {m.senderHandle}
+                  <span className="text-cyan-600 select-none">│</span>
+                  <span className="text-cyan-300 font-bold select-none shrink-0 font-mono">
+                    {m.senderHandle} &gt;
                   </span>
-                  <span className="text-zinc-200 break-words whitespace-pre-wrap">
+                  <span className="text-zinc-200 break-words whitespace-pre-wrap font-mono">
                     {m.content}
                   </span>
                 </div>
-                <span className="text-[10px] text-zinc-600 select-none shrink-0 font-mono">
-                  {time}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-zinc-600 select-none font-mono">
+                    {time}
+                  </span>
+                  <span className="text-cyan-600 select-none">│</span>
+                </div>
               </div>
             );
           })
         )}
       </div>
 
+      {/* Horizontal Divider Bar */}
+      <div className="px-3 text-cyan-600 text-[10px] select-none flex items-center justify-between border-t border-cyan-500/40 bg-[#090c14]">
+        <span>├───────────────────────────────────────────────────────────</span>
+        <span>┤</span>
+      </div>
+
       {/* Team Chat Command Input Line */}
       <form 
         onSubmit={handleSendMessage}
-        className="flex items-center gap-2 p-2 bg-[#090b12] border-t border-zinc-800/80"
+        className="flex items-center gap-2 px-3 py-2 bg-[#090b12]"
       >
-        <span className="text-emerald-400 font-bold text-xs select-none pl-1 whitespace-nowrap">
-          team@terminal:~$
+        <span className="text-cyan-400 font-bold text-xs select-none pl-1 whitespace-nowrap font-mono">
+          │ &gt;
         </span>
 
         <input
@@ -312,7 +325,7 @@ export const TeamChatBox: React.FC<TeamChatBoxProps> = ({
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Transmit message to squad... (Enter to send, Esc to minimize)"
+          placeholder="type message... (Enter to send, Esc to minimize)"
           className="flex-1 bg-transparent border-none outline-none text-zinc-100 placeholder-zinc-600 font-mono text-xs focus:ring-0 p-0 shadow-none caret-cyan-400"
           autoComplete="off"
           spellCheck={false}
@@ -326,6 +339,7 @@ export const TeamChatBox: React.FC<TeamChatBoxProps> = ({
           <span>SEND</span>
           <Send size={11} />
         </button>
+        <span className="text-cyan-400 font-bold text-xs select-none">┘</span>
       </form>
     </div>
   );
