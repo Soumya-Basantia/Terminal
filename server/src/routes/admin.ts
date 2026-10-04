@@ -1,9 +1,9 @@
-import { Router, Response } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
 import { createAuditLog } from '../lib/audit';
-import { generateExcelBuffer, ExcelColumn } from '../lib/excel';
+import { generateExcelBuffer, generateMultiSheetExcelBuffer, ExcelColumn } from '../lib/excel';
 import { isReservedKeyword } from './auth';
 import { Prisma } from '@prisma/client';
 
@@ -235,6 +235,181 @@ router.get('/search', async (req: AuthRequest, res: Response): Promise<void> => 
     res.json({ results, total: results.length });
   } catch (err: any) {
     res.status(500).json({ error: 'Search failed', details: err.message });
+  }
+});
+
+// ── 2b. STUDENT PERFORMANCE DETAIL ──
+// GET /api/admin/students/:id/performance
+// Returns full identity + real-time performance metrics for a single student
+router.get('/students/:id/performance', async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = String(req.params.id);
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        email: true,
+        usn: true,
+        branch: true,
+        section: true,
+        role: true,
+        accountStatus: true,
+        approvalStatus: true,
+        isVerified: true,
+        lastLogin: true,
+        lastActivity: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      res.status(404).json({ error: 'Student not found' });
+      return;
+    }
+
+    // Fetch all session enrollments with session/game/event context
+    const sessionPlayers = await prisma.sessionPlayer.findMany({
+      where: { userId },
+      include: {
+        session: {
+          include: {
+            event: { select: { id: true, name: true, clubId: true } },
+            currentGame: { select: { id: true, name: true, template: true, clubId: true } },
+          },
+        },
+        team: { select: { id: true, name: true } },
+      },
+      orderBy: { joinedAt: 'desc' },
+    });
+
+    // Fetch all submissions for this student
+    const submissions = await prisma.submission.findMany({
+      where: { player: { userId } },
+      include: {
+        challenge: { select: { id: true, points: true, gameId: true } },
+        session: { select: { id: true, roomCode: true, startedAt: true, endedAt: true, status: true } },
+      },
+      orderBy: { submittedAt: 'desc' },
+    });
+
+    // Aggregate metrics
+    const totalScore = submissions.reduce((s, sub) => s + (sub.score || 0), 0);
+    const attemptedCount = submissions.length;
+    const solvedCount = submissions.filter(s => s.isCorrect).length;
+    const successRate = attemptedCount > 0 ? Math.round((solvedCount / attemptedCount) * 100) : 0;
+    const sessionIds = [...new Set(sessionPlayers.map(sp => sp.sessionId))];
+    const gamesPlayed = sessionIds.length;
+    const completedSessions = sessionPlayers.filter(sp =>
+      sp.session.status === 'ENDED' || sp.session.status === 'RESULTS'
+    ).length;
+
+    // Per-session breakdown (game history)
+    const gameHistory = sessionPlayers.slice(0, 20).map(sp => {
+      const sessionSubs = submissions.filter(sub => sub.sessionId === sp.sessionId);
+      const sessionScore = sessionSubs.reduce((s, sub) => s + (sub.score || 0), 0);
+      const sessionSolved = sessionSubs.filter(s => s.isCorrect).length;
+      const sessionAttempted = sessionSubs.length;
+      return {
+        sessionId: sp.sessionId,
+        roomCode: sp.session.roomCode,
+        gameName: sp.session.currentGame?.name || 'Unknown Game',
+        gameTemplate: sp.session.currentGame?.template || 'QUIZ',
+        eventName: sp.session.event?.name || 'Platform Event',
+        teamId: sp.team?.id || null,
+        teamName: sp.team?.name || null,
+        joinedAt: sp.joinedAt,
+        sessionStatus: sp.session.status,
+        startedAt: sp.session.startedAt,
+        endedAt: sp.session.endedAt,
+        score: sessionScore,
+        challengesAttempted: sessionAttempted,
+        challengesSolved: sessionSolved,
+        successRate: sessionAttempted > 0 ? Math.round((sessionSolved / sessionAttempted) * 100) : 0,
+        result: (sp.session.status === 'ENDED' || sp.session.status === 'RESULTS') ? 'COMPLETED' : sp.session.status === 'LOBBY' ? 'PENDING' : 'IN_PROGRESS',
+      };
+    });
+
+    // Current team membership
+    const currentTeam = await prisma.teamMember.findFirst({
+      where: { userId },
+      include: {
+        team: {
+          include: {
+            members: {
+              include: { user: { select: { username: true, name: true } } },
+            },
+          },
+        },
+      },
+      orderBy: { joinedAt: 'desc' },
+    });
+
+    // Club memberships
+    const clubMemberships = await prisma.clubMember.findMany({
+      where: { userId },
+      include: { club: { select: { id: true, name: true, slug: true } } },
+    });
+
+    // Global rank among all PLAYER users by total score
+    const allPlayerScores: Array<{ userId: string; totalScore: number }> = await prisma.$queryRaw`
+      SELECT sp."userId" as "userId", COALESCE(SUM(sub.score), 0)::int as "totalScore"
+      FROM session_players sp
+      LEFT JOIN submissions sub ON sub."playerId" = sp.id
+      INNER JOIN users u ON u.id = sp."userId" AND u.role = 'PLAYER'
+      GROUP BY sp."userId"
+      ORDER BY "totalScore" DESC
+    `;
+
+    const rankIdx = allPlayerScores.findIndex(p => p.userId === userId);
+    const currentRank = rankIdx >= 0 ? rankIdx + 1 : allPlayerScores.length + 1;
+
+    res.json({
+      student: {
+        id: user.id,
+        username: user.username,
+        handle: `${user.username}@terminal`,
+        name: user.name || user.username,
+        email: user.email,
+        usn: user.usn || 'N/A',
+        branch: user.branch || 'N/A',
+        section: user.section || 'N/A',
+        role: user.role,
+        accountStatus: user.accountStatus,
+        approvalStatus: user.approvalStatus,
+        isVerified: user.isVerified,
+        lastLogin: user.lastLogin,
+        lastActivity: user.lastActivity,
+        createdAt: user.createdAt,
+      },
+      performance: {
+        totalScore,
+        rank: currentRank,
+        gamesPlayed,
+        gamesCompleted: completedSessions,
+        challengesAttempted: attemptedCount,
+        challengesSolved: solvedCount,
+        successRate,
+      },
+      team: currentTeam ? {
+        id: currentTeam.team.id,
+        name: currentTeam.team.name,
+        role: currentTeam.role,
+        memberCount: currentTeam.team.members.length,
+        members: currentTeam.team.members.map(m => `${m.user.username}@terminal`),
+      } : null,
+      clubs: clubMemberships.map(cm => ({
+        id: cm.club.id,
+        name: cm.club.name,
+        slug: cm.club.slug,
+        role: cm.role,
+      })),
+      gameHistory,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch student performance', details: err.message });
   }
 });
 
@@ -1318,8 +1493,11 @@ router.post('/system-settings', async (req: AuthRequest, res: Response): Promise
 
 // ── 10. EXCEL EXPORT (ALL DATA TABLES) ──
 // POST or GET /api/admin/export/:target
-router.all(['/export/:target', '/export'], async (req: AuthRequest, res: Response): Promise<void> => {
+router.all(['/export/:target', '/export'], async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   const target = String(req.params.target || req.body?.target || req.query?.target || 'students').toLowerCase();
+  if (target === 'students-full') {
+    return next();
+  }
   const search = req.body?.search || req.query?.search;
   const filters = req.body?.filters || [];
   const adminActor = await getAdminActor(req);
@@ -1474,6 +1652,423 @@ router.all(['/export/:target', '/export'], async (req: AuthRequest, res: Respons
     res.send(excelBuffer);
   } catch (err: any) {
     res.status(500).json({ error: 'Excel export failed', details: err.message });
+  }
+});
+
+
+// ── 11. COMPREHENSIVE STUDENT EXCEL EXPORT (MULTI-SHEET) ──
+// POST /api/admin/export/students-full
+// Generates a professional 6-sheet XLSX workbook with real data from the database
+router.post('/export/students-full', async (req: AuthRequest, res: Response): Promise<void> => {
+  const adminActor = await getAdminActor(req);
+  const {
+    branch, section, clubSlug, teamId, accountStatus,
+    minScore, maxScore, search, sheets: requestedSheets,
+    exportedAt,
+  } = req.body || {};
+
+  try {
+    // ─── Base where clause for student filter ───
+    const userWhere: any = { role: 'PLAYER' };
+    const andConditions: any[] = [{ role: 'PLAYER' }];
+
+    if (accountStatus) andConditions.push({ accountStatus });
+    if (branch) andConditions.push({ branch: { contains: branch, mode: 'insensitive' } });
+    if (section) andConditions.push({ section: { contains: section, mode: 'insensitive' } });
+    if (search?.trim()) {
+      andConditions.push({
+        OR: [
+          { name: { contains: search.trim(), mode: 'insensitive' } },
+          { username: { contains: search.trim(), mode: 'insensitive' } },
+          { usn: { contains: search.trim(), mode: 'insensitive' } },
+          { email: { contains: search.trim(), mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    const where = andConditions.length > 1 ? { AND: andConditions } : { role: 'PLAYER' as const };
+
+    // ─── Fetch all students ───
+    const students = await prisma.user.findMany({
+      where,
+      select: {
+        id: true, username: true, name: true, email: true, usn: true,
+        branch: true, section: true, role: true, accountStatus: true,
+        approvalStatus: true, isVerified: true, lastLogin: true,
+        lastActivity: true, createdAt: true,
+        ClubMember: { include: { club: { select: { name: true, slug: true } } } },
+        teamMemberships: {
+          include: { team: { select: { id: true, name: true } } },
+          orderBy: { joinedAt: 'desc' },
+          take: 1,
+        },
+        sessionPlayers: {
+          include: {
+            session: {
+              include: {
+                event: { select: { name: true } },
+                currentGame: { select: { id: true, name: true, template: true } },
+              },
+            },
+            team: { select: { name: true } },
+          },
+          orderBy: { joinedAt: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // ─── Aggregate scores per student from submissions ───
+    const submissionAgg: Array<{ userId: string; totalScore: number; attempted: number; solved: number }> = await prisma.$queryRaw`
+      SELECT sp."userId" as "userId",
+             COALESCE(SUM(sub.score), 0)::int as "totalScore",
+             COUNT(sub.id)::int as "attempted",
+             COUNT(CASE WHEN sub."isCorrect" THEN 1 END)::int as "solved"
+      FROM session_players sp
+      LEFT JOIN submissions sub ON sub."playerId" = sp.id
+      INNER JOIN users u ON u.id = sp."userId" AND u.role = 'PLAYER'
+      GROUP BY sp."userId"
+      ORDER BY "totalScore" DESC
+    `;
+
+    const scoreMap = new Map(submissionAgg.map(r => [r.userId, r]));
+    const rankMap = new Map(submissionAgg.map((r, i) => [r.userId, i + 1]));
+
+    // Apply minScore / maxScore filter
+    const filteredStudents = students.filter(s => {
+      const score = scoreMap.get(s.id)?.totalScore || 0;
+      if (minScore !== undefined && score < Number(minScore)) return false;
+      if (maxScore !== undefined && score > Number(maxScore)) return false;
+      // Club filter
+      if (clubSlug && !s.ClubMember.some(cm => cm.club.slug === clubSlug)) return false;
+      return true;
+    });
+
+    const exportTimestamp = new Date();
+    const filterDesc = [
+      branch && `branch=${branch}`,
+      section && `section=${section}`,
+      clubSlug && `club=${clubSlug}`,
+      accountStatus && `status=${accountStatus}`,
+      minScore !== undefined && `minScore=${minScore}`,
+      maxScore !== undefined && `maxScore=${maxScore}`,
+      search && `search=${search}`,
+    ].filter(Boolean).join(', ') || 'ALL STUDENTS';
+
+    const workbookSheets: Array<{ name: string; columns: ExcelColumn[]; rows: Record<string, any>[] }> = [];
+
+    // ─── SHEET 1: STUDENTS ───
+    const sheet1Rows = filteredStudents.map(s => {
+      const agg = scoreMap.get(s.id);
+      const rank = rankMap.get(s.id);
+      const clubs = s.ClubMember.map(cm => cm.club.name).join(', ');
+      const currentTeam = s.teamMemberships[0];
+      const teamRole = s.teamMemberships[0]?.role || null;
+      return {
+        id: s.id,
+        name: s.name || s.username,
+        username: s.username,
+        handle: `${s.username}@terminal`,
+        usn: s.usn || '',
+        email: s.email,
+        branch: s.branch || '',
+        section: s.section || '',
+        role: s.role,
+        club: clubs || '',
+        currentTeam: currentTeam?.team.name || '',
+        teamRole: teamRole || '',
+        accountStatus: s.accountStatus,
+        onlineStatus: s.lastActivity && (Date.now() - new Date(s.lastActivity).getTime() < 5 * 60 * 1000) ? 'ONLINE' : 'OFFLINE',
+        totalScore: agg?.totalScore || 0,
+        rank: rank || 0,
+        gamesPlayed: [...new Set(s.sessionPlayers.map(sp => sp.sessionId))].length,
+        gamesCompleted: s.sessionPlayers.filter(sp =>
+          sp.session.status === 'ENDED' || sp.session.status === 'RESULTS'
+        ).length,
+        challengesAttempted: agg?.attempted || 0,
+        challengesSolved: agg?.solved || 0,
+        successRate: (agg?.attempted || 0) > 0
+          ? Math.round(((agg?.solved || 0) / (agg?.attempted || 1)) * 100)
+          : 0,
+        lastActive: s.lastActivity ? s.lastActivity.toISOString() : '',
+        registeredAt: s.createdAt.toISOString(),
+      };
+    });
+
+    workbookSheets.push({
+      name: 'STUDENTS',
+      columns: [
+        { header: 'Student ID', key: 'id', width: 28 },
+        { header: 'Full Name', key: 'name', width: 22 },
+        { header: 'Username', key: 'username', width: 16 },
+        { header: 'TERMINAL Handle', key: 'handle', width: 22 },
+        { header: 'USN', key: 'usn', width: 16 },
+        { header: 'Email', key: 'email', width: 30 },
+        { header: 'Branch', key: 'branch', width: 12 },
+        { header: 'Section', key: 'section', width: 10 },
+        { header: 'Role', key: 'role', width: 12 },
+        { header: 'Club', key: 'club', width: 18 },
+        { header: 'Current Team', key: 'currentTeam', width: 20 },
+        { header: 'Team Role', key: 'teamRole', width: 12 },
+        { header: 'Account Status', key: 'accountStatus', width: 16 },
+        { header: 'Online Status', key: 'onlineStatus', width: 14 },
+        { header: 'Total Points', key: 'totalScore', width: 14, type: 'number' },
+        { header: 'Rank', key: 'rank', width: 10, type: 'number' },
+        { header: 'Games Played', key: 'gamesPlayed', width: 14, type: 'number' },
+        { header: 'Games Completed', key: 'gamesCompleted', width: 18, type: 'number' },
+        { header: 'Challenges Attempted', key: 'challengesAttempted', width: 22, type: 'number' },
+        { header: 'Challenges Solved', key: 'challengesSolved', width: 18, type: 'number' },
+        { header: 'Success Rate (%)', key: 'successRate', width: 16, type: 'percent' },
+        { header: 'Last Active', key: 'lastActive', width: 22, type: 'date' },
+        { header: 'Registered At', key: 'registeredAt', width: 22, type: 'date' },
+      ],
+      rows: sheet1Rows,
+    });
+
+    // ─── SHEET 2: GAME PERFORMANCE ───
+    const gamePerformanceRows: Record<string, any>[] = [];
+    for (const s of filteredStudents) {
+      const agg = scoreMap.get(s.id);
+      for (const sp of s.sessionPlayers) {
+        const clubs = s.ClubMember.map(cm => cm.club.name).join(', ');
+        gamePerformanceRows.push({
+          studentName: s.name || s.username,
+          username: s.username,
+          handle: `${s.username}@terminal`,
+          usn: s.usn || '',
+          club: clubs || '',
+          game: sp.session.currentGame?.name || '',
+          gameTemplate: sp.session.currentGame?.template || '',
+          sessionCode: sp.session.roomCode,
+          team: sp.team?.name || '',
+          eventName: sp.session.event?.name || '',
+          joinedAt: sp.joinedAt.toISOString(),
+          sessionStatus: sp.session.status,
+        });
+      }
+    }
+
+    workbookSheets.push({
+      name: 'GAME PERFORMANCE',
+      columns: [
+        { header: 'Student Name', key: 'studentName', width: 22 },
+        { header: 'Username', key: 'username', width: 16 },
+        { header: 'TERMINAL Handle', key: 'handle', width: 22 },
+        { header: 'USN', key: 'usn', width: 16 },
+        { header: 'Club', key: 'club', width: 18 },
+        { header: 'Game', key: 'game', width: 24 },
+        { header: 'Template', key: 'gameTemplate', width: 16 },
+        { header: 'Session Code', key: 'sessionCode', width: 14 },
+        { header: 'Team', key: 'team', width: 20 },
+        { header: 'Event', key: 'eventName', width: 22 },
+        { header: 'Joined At', key: 'joinedAt', width: 22, type: 'date' },
+        { header: 'Session Status', key: 'sessionStatus', width: 18 },
+      ],
+      rows: gamePerformanceRows,
+    });
+
+    // ─── SHEET 3: GAME SUMMARY ───
+    const sessions = await prisma.session.findMany({
+      select: {
+        id: true,
+        roomCode: true,
+        status: true,
+        startedAt: true,
+        endedAt: true,
+        event: { select: { name: true } },
+        currentGame: { select: { id: true, name: true, template: true } },
+        players: { select: { id: true, userId: true, status: true } },
+        submissions: { select: { score: true, isCorrect: true } },
+      },
+      where: { status: { in: ['ENDED', 'RESULTS', 'ROUND_ACTIVE'] } },
+      orderBy: { startedAt: 'desc' },
+      take: 100,
+    });
+
+    // Fetch game club names separately
+    const gameIds = [...new Set(sessions.map(s => s.currentGame?.id).filter(Boolean))] as string[];
+    const gameClubs = await prisma.game.findMany({
+      where: { id: { in: gameIds } },
+      select: { id: true, club: { select: { name: true } } },
+    });
+    const gameClubMap = new Map(gameClubs.map(g => [g.id, g.club?.name || '']));
+
+    const gameSummaryRows = sessions.map(sess => {
+      const subs = sess.submissions as Array<{ score: number | null; isCorrect: boolean }>;
+      const plrs = sess.players as Array<{ id: string; userId: string; status: string }>;
+      const totalScore = subs.reduce((s, sub) => s + (sub.score || 0), 0);
+      const playerCount = plrs.length;
+      const completedPlayers = plrs.filter(p => p.status === 'ACTIVE').length;
+      const avgScore = playerCount > 0 ? Math.round(totalScore / playerCount) : 0;
+      const maxSc = subs.length > 0 ? Math.max(...subs.map(s => s.score || 0)) : 0;
+      const solved = subs.filter(s => s.isCorrect).length;
+      const gameId = sess.currentGame?.id || '';
+      return {
+        game: sess.currentGame?.name || '',
+        template: sess.currentGame?.template || '',
+        club: gameClubMap.get(gameId) || '',
+        sessionCode: sess.roomCode,
+        eventName: sess.event?.name || '',
+        status: sess.status,
+        uniquePlayers: playerCount,
+        totalSubmissions: subs.length,
+        solved,
+        avgScore,
+        highestScore: maxSc,
+        completionRate: playerCount > 0 ? Math.round((completedPlayers / playerCount) * 100) : 0,
+      };
+    });
+
+    workbookSheets.push({
+      name: 'GAME SUMMARY',
+      columns: [
+        { header: 'Game', key: 'game', width: 26 },
+        { header: 'Template', key: 'template', width: 18 },
+        { header: 'Club', key: 'club', width: 18 },
+        { header: 'Session Code', key: 'sessionCode', width: 14 },
+        { header: 'Event', key: 'eventName', width: 22 },
+        { header: 'Status', key: 'status', width: 16 },
+        { header: 'Players', key: 'uniquePlayers', width: 12, type: 'number' },
+        { header: 'Submissions', key: 'totalSubmissions', width: 14, type: 'number' },
+        { header: 'Solved', key: 'solved', width: 12, type: 'number' },
+        { header: 'Avg Score', key: 'avgScore', width: 12, type: 'number' },
+        { header: 'Highest Score', key: 'highestScore', width: 14, type: 'number' },
+        { header: 'Completion (%)', key: 'completionRate', width: 16, type: 'percent' },
+      ],
+      rows: gameSummaryRows,
+    });
+
+    // ─── SHEET 4: TEAMS ───
+    const teams = await prisma.team.findMany({
+      include: {
+        members: {
+          include: { user: { select: { username: true, name: true } } },
+        },
+        creator: { select: { username: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const teamRows = teams.map(t => ({
+      name: t.name,
+      leader: `${t.creator.username}@terminal`,
+      memberCount: t.members.length,
+      memberHandles: t.members.map(m => `${m.user.username}@terminal`).join(', '),
+      createdAt: t.createdAt.toISOString(),
+    }));
+
+    workbookSheets.push({
+      name: 'TEAMS',
+      columns: [
+        { header: 'Team Name', key: 'name', width: 24 },
+        { header: 'Leader', key: 'leader', width: 22 },
+        { header: 'Member Count', key: 'memberCount', width: 14, type: 'number' },
+        { header: 'Member Handles', key: 'memberHandles', width: 50 },
+        { header: 'Created At', key: 'createdAt', width: 22, type: 'date' },
+      ],
+      rows: teamRows,
+    });
+
+    // ─── SHEET 5: CLUBS ───
+    const clubs = await prisma.club.findMany({
+      include: {
+        members: {
+          include: { user: { select: { username: true, role: true } } },
+        },
+      },
+    });
+
+    const clubRows: Record<string, any>[] = [];
+    for (const club of clubs) {
+      for (const m of club.members) {
+        clubRows.push({
+          club: club.name,
+          slug: club.slug,
+          memberHandle: `${m.user.username}@terminal`,
+          memberRole: m.role,
+          joinedAt: m.joinedAt.toISOString(),
+        });
+      }
+    }
+
+    workbookSheets.push({
+      name: 'CLUBS',
+      columns: [
+        { header: 'Club Name', key: 'club', width: 22 },
+        { header: 'Club Slug', key: 'slug', width: 18 },
+        { header: 'Member Handle', key: 'memberHandle', width: 24 },
+        { header: 'Club Role', key: 'memberRole', width: 14 },
+        { header: 'Joined At', key: 'joinedAt', width: 22, type: 'date' },
+      ],
+      rows: clubRows,
+    });
+
+    // ─── SHEET 6: PARTICIPATION ───
+    const participationRows: Record<string, any>[] = [];
+    for (const s of filteredStudents) {
+      for (const sp of s.sessionPlayers) {
+        participationRows.push({
+          studentName: s.name || s.username,
+          handle: `${s.username}@terminal`,
+          usn: s.usn || '',
+          game: sp.session.currentGame?.name || '',
+          sessionCode: sp.session.roomCode,
+          event: sp.session.event?.name || '',
+          joinedAt: sp.joinedAt.toISOString(),
+          sessionStatus: sp.session.status,
+          result: ['ENDED', 'FINAL_RESULTS'].includes(sp.session.status) ? 'COMPLETED' : sp.session.status === 'LOBBY' ? 'PENDING' : 'IN_PROGRESS',
+        });
+      }
+    }
+
+    workbookSheets.push({
+      name: 'PARTICIPATION',
+      columns: [
+        { header: 'Student Name', key: 'studentName', width: 22 },
+        { header: 'TERMINAL Handle', key: 'handle', width: 22 },
+        { header: 'USN', key: 'usn', width: 16 },
+        { header: 'Game', key: 'game', width: 24 },
+        { header: 'Session Code', key: 'sessionCode', width: 14 },
+        { header: 'Event', key: 'event', width: 22 },
+        { header: 'Joined At', key: 'joinedAt', width: 22, type: 'date' },
+        { header: 'Session Status', key: 'sessionStatus', width: 18 },
+        { header: 'Result', key: 'result', width: 14 },
+      ],
+      rows: participationRows,
+    });
+
+
+
+    const xlsxBuffer = await generateMultiSheetExcelBuffer(
+      workbookSheets,
+      {
+        title: 'TERMINAL Student Export',
+        appliedFilters: filterDesc,
+        exportedAt: exportTimestamp,
+      }
+    );
+
+    await createAuditLog({
+      adminId: adminActor.adminId,
+      adminUsername: adminActor.adminUsername,
+      action: 'EXPORT_STUDENT_FULL_XLSX',
+      targetType: 'STUDENTS',
+      details: {
+        studentCount: filteredStudents.length,
+        sheets: workbookSheets.map(s => s.name),
+        filters: filterDesc,
+      },
+    });
+
+    const filename = `TERMINAL_Students_${exportTimestamp.toISOString().slice(0, 10)}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('X-Export-Count', String(filteredStudents.length));
+    res.setHeader('X-Export-Filters', filterDesc);
+    res.send(xlsxBuffer);
+  } catch (err: any) {
+    console.error('[EXPORT ERROR]', err);
+    res.status(500).json({ error: 'Student XLSX export failed', details: err.message });
   }
 });
 

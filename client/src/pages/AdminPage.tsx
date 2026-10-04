@@ -119,6 +119,32 @@ export default function AdminPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  // Student Performance Drawer
+  const [studentPerf, setStudentPerf] = useState<any | null>(null);
+  const [studentPerfLoading, setStudentPerfLoading] = useState(false);
+
+  // Full Excel Export Panel
+  const [exportPanelOpen, setExportPanelOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportCount, setExportCount] = useState<number | null>(null);
+  const [exportFilters, setExportFilters] = useState({
+    branch: '',
+    section: '',
+    clubSlug: '',
+    accountStatus: '',
+    minScore: '',
+    maxScore: '',
+    search: '',
+  });
+  const [exportSheets, setExportSheets] = useState({
+    students: true,
+    gamePerformance: true,
+    gameSummary: true,
+    teams: true,
+    clubs: true,
+    participation: true,
+  });
+
   // Check admin session
   useEffect(() => {
     const rawUser = localStorage.getItem('terminal_user');
@@ -346,7 +372,7 @@ export default function AdminPage() {
     }
   }
 
-  // Excel Export Handler
+  // Excel Export Handler (existing generic)
   async function handleExportExcel(exportTarget: string) {
     try {
       setFeedback({ message: `Generating Excel export for ${exportTarget.toUpperCase()}...`, type: 'success' });
@@ -364,6 +390,53 @@ export default function AdminPage() {
       link.remove();
     } catch (err: any) {
       setFeedback({ message: 'Excel export generation failed', type: 'error' });
+    }
+  }
+
+  // Student Performance Drawer
+  async function openStudentPerformance(userId: string) {
+    setStudentPerfLoading(true);
+    setStudentPerf(null);
+    try {
+      const res = await api.get(`/admin/students/${userId}/performance`);
+      setStudentPerf(res.data);
+    } catch (err: any) {
+      setFeedback({ message: 'Failed to load student performance data', type: 'error' });
+    } finally {
+      setStudentPerfLoading(false);
+    }
+  }
+
+  // Full Multi-Sheet Student Export
+  async function handleFullExport() {
+    setExportLoading(true);
+    try {
+      const payload: any = {};
+      if (exportFilters.branch.trim()) payload.branch = exportFilters.branch.trim();
+      if (exportFilters.section.trim()) payload.section = exportFilters.section.trim();
+      if (exportFilters.clubSlug.trim()) payload.clubSlug = exportFilters.clubSlug.trim();
+      if (exportFilters.accountStatus) payload.accountStatus = exportFilters.accountStatus;
+      if (exportFilters.minScore.trim()) payload.minScore = Number(exportFilters.minScore);
+      if (exportFilters.maxScore.trim()) payload.maxScore = Number(exportFilters.maxScore);
+      if (exportFilters.search.trim()) payload.search = exportFilters.search.trim();
+
+      const response = await api.post('/admin/export/students-full', payload, { responseType: 'blob' });
+      const count = response.headers['x-export-count'];
+      if (count) setExportCount(Number(count));
+      const url = window.URL.createObjectURL(new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `TERMINAL_Students_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setFeedback({ message: `✓ EXPORT COMPLETE — ${count || '?'} students exported across 6 sheets`, type: 'success' });
+    } catch (err: any) {
+      setFeedback({ message: err.response?.data?.error || 'Export failed', type: 'error' });
+    } finally {
+      setExportLoading(false);
     }
   }
 
@@ -462,183 +535,173 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-white flex flex-col font-sans">
-      {/* Top Root Navbar */}
-      <header className="border-b-2 border-cyan-500/50 bg-[#0d111a] px-6 py-3.5 flex flex-wrap items-center justify-between sticky top-0 z-50 shadow-[0_4px_20px_rgba(0,0,0,0.6)]">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <Database size={22} className="text-cyan-400 animate-pulse" />
-            <span className="font-mono font-black text-xl tracking-wider text-white">TERMINAL<span className="text-cyan-400">_ADMIN</span></span>
+    <div className="min-h-screen bg-[#050608] text-[#e6edf3] flex flex-col font-mono" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+      {/* Cyber Grid */}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, backgroundImage: 'linear-gradient(rgba(0,255,204,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,204,0.02) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+      {/* ── ROOT ADMIN NAVBAR ── */}
+      <header className="relative z-50 w-full bg-[#0a0c10] border-b-2 border-[#1a222e] px-4 sm:px-6 py-0 flex flex-wrap items-center justify-between gap-3 shadow-[0_2px_0px_#000]" style={{ minHeight: 52, borderRadius: 0 }}>
+        {/* Left: Brand */}
+        <div className="flex items-center gap-3 py-2">
+          <div className="w-8 h-8 bg-[#ff3366] flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_#000]" style={{ borderRadius: 0 }}>
+            <span className="text-white font-black text-xs font-mono">R</span>
           </div>
-          <div className="h-5 w-px bg-zinc-800" />
-          <div className="flex items-center gap-2 font-mono text-xs">
-            <span className="px-2 py-0.5 bg-red-950/80 border border-red-700 text-red-300 font-bold">ROOT SINGLETON</span>
-            <span className="text-zinc-500">// SERVER-SIDE ENFORCED</span>
+          <div>
+            <div className="font-black text-sm tracking-widest text-white" style={{ fontFamily: "'Orbitron', monospace" }}>
+              TERMINAL <span className="text-[#ff3366]">ADMIN</span>
+            </div>
+            <div className="text-[9px] text-[#5e6b7c] font-mono tracking-[0.2em] uppercase">// ROOT_SINGLETON • SERVER-ENFORCED</div>
           </div>
+          <span className="hidden sm:inline text-[9px] font-black px-2 py-0.5 border border-[rgba(255,51,102,0.5)] text-[#ff3366] bg-[rgba(255,51,102,0.08)] tracking-widest" style={{ borderRadius: 0 }}>SUPERADMIN</span>
         </div>
 
-        {/* Global Search Bar */}
-        <div className="relative w-full sm:w-80 my-2 sm:my-0">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
+        {/* Center: Global Search */}
+        <div className="relative w-full sm:w-72 order-last sm:order-none py-2">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5e6b7c]" />
           <input
             type="text"
-            placeholder="Global search (Students, GM, Events, Games)..."
+            placeholder="Search students, GMs, events, games..."
             value={globalSearch}
             onChange={(e) => handleGlobalSearch(e.target.value)}
-            className="w-full bg-[#080a10] border border-cyan-500/40 text-xs font-mono pl-9 pr-3 py-1.5 text-zinc-100 placeholder-zinc-500 focus:border-cyan-400 outline-none rounded"
+            className="w-full bg-[#050608] border border-[#1a222e] text-[11px] font-mono pl-9 pr-3 py-1.5 text-[#e6edf3] placeholder-[#3d4754] focus:border-[rgba(0,255,204,0.5)] outline-none"
+            style={{ borderRadius: 0 }}
           />
           {searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-[#0d111a] border-2 border-cyan-500/60 shadow-2xl z-50 max-h-72 overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-[#0a0c10] border-2 border-[rgba(0,255,204,0.4)] shadow-[4px_4px_0px_#000] z-50 max-h-72 overflow-y-auto" style={{ borderRadius: 0 }}>
               {searchResults.map((r, i) => (
                 <div
                   key={i}
                   onClick={() => {
-                    if (r.linkType === 'user') {
-                      openUserDetail(r.id);
-                    } else if (r.linkType === 'game' || r.linkType === 'event') {
-                      setActiveTab('CONTENT');
-                    } else if (r.linkType === 'report') {
-                      setActiveTab('REPORTS');
-                    }
+                    if (r.linkType === 'user') openUserDetail(r.id);
+                    else if (r.linkType === 'game' || r.linkType === 'event') setActiveTab('CONTENT');
+                    else if (r.linkType === 'report') setActiveTab('REPORTS');
                     setSearchResults([]);
                   }}
-                  className="p-2.5 border-b border-zinc-800/80 hover:bg-[#151c2c] cursor-pointer font-mono text-xs flex items-center justify-between"
+                  className="p-2.5 border-b border-[#1a222e] hover:bg-[#161c24] cursor-pointer font-mono text-xs flex items-center justify-between transition-colors"
                 >
                   <div>
-                    <div className="text-cyan-300 font-bold">{r.title}</div>
-                    <div className="text-zinc-400 text-[10px]">{r.subtitle}</div>
+                    <div className="text-[#00ffcc] font-bold text-[11px]">{r.title}</div>
+                    <div className="text-[#5e6b7c] text-[9px]">{r.subtitle}</div>
                   </div>
-                  <span className="text-[9px] px-1.5 py-0.5 bg-zinc-800 border border-zinc-700 text-zinc-300 uppercase">
-                    {r.category}
-                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 border border-[#2d3848] text-[#8b99aa] uppercase" style={{ borderRadius: 0 }}>{r.category}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-3">
-          <Link to="/terminal" className="text-xs font-mono text-cyan-400 hover:text-cyan-300 transition-colors">
-            Student Terminal
+        {/* Right: Controls */}
+        <div className="flex items-center gap-2 py-2">
+          <Link to="/terminal">
+            <button className="text-[10px] font-bold tracking-widest px-2.5 py-1.5 border border-[#2d3848] text-[#8b99aa] bg-[#0f1319] hover:text-white hover:border-[#48566a] transition-all" style={{ borderRadius: 0 }}>PLAYER VIEW</button>
           </Link>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 bg-[#171b26] hover:bg-red-950/80 hover:border-red-600 text-xs font-mono px-3 py-1.5 border border-zinc-700 rounded transition-all text-zinc-300 hover:text-white"
-          >
-            <LogOut size={13} />
-            <span>DISCONNECT ROOT</span>
+            className="flex items-center gap-1.5 text-[10px] font-black tracking-widest px-2.5 py-1.5 border border-[rgba(255,51,102,0.5)] text-[#ff3366] bg-[rgba(255,51,102,0.06)] hover:bg-[rgba(255,51,102,0.15)] transition-all"
+            style={{ borderRadius: 0 }}>
+            <LogOut size={11} />
+            <span className="hidden sm:inline">KILL SESSION</span>
           </button>
         </div>
       </header>
 
-      {/* Navigation Sub-bar */}
-      <div className="bg-[#0b0e17] border-b border-zinc-800 px-6 py-2 flex flex-wrap gap-2 text-xs font-mono select-none">
+      {/* ── NAVIGATION TABS ── */}
+      <div className="relative z-40 bg-[#0a0c10] border-b-2 border-[#1a222e] px-4 sm:px-6 pt-2 flex flex-wrap gap-0 text-xs font-mono select-none">
         {(['USERS', 'CONTENT', 'MESSAGING', 'REPORTS', 'AUDIT_LOGS', 'SYSTEM_CONTROLS'] as AdminTab[]).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-3 py-1.5 border transition-all flex items-center gap-1.5 ${
-              activeTab === tab 
-                ? 'bg-cyan-500 text-black font-bold border-cyan-400 shadow-[0_0_10px_rgba(0,255,204,0.3)]' 
-                : 'bg-[#121622] text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+            className={`flex items-center gap-1.5 px-3.5 py-2 text-[10px] font-black tracking-widest border-t border-l border-r transition-all cursor-pointer ${
+              activeTab === tab
+                ? 'bg-[#ff3366] text-white border-[#ff3366] shadow-[2px_0px_0px_#000,-1px_0px_0px_#000]'
+                : 'bg-[#0f1319] text-[#5e6b7c] border-[#1a222e] hover:text-white hover:bg-[#161c24]'
             }`}
+            style={{ borderRadius: 0, marginBottom: '-2px' }}
           >
-            {tab === 'USERS' && <Users size={13} />}
-            {tab === 'CONTENT' && <Layers size={13} />}
-            {tab === 'MESSAGING' && <Mail size={13} />}
-            {tab === 'REPORTS' && <FileText size={13} />}
-            {tab === 'AUDIT_LOGS' && <Activity size={13} />}
-            {tab === 'SYSTEM_CONTROLS' && <Sliders size={13} />}
-            <span>{tab.replace('_', ' ')}</span>
+            {tab === 'USERS' && <Users size={11} />}
+            {tab === 'CONTENT' && <Layers size={11} />}
+            {tab === 'MESSAGING' && <Mail size={11} />}
+            {tab === 'REPORTS' && <FileText size={11} />}
+            {tab === 'AUDIT_LOGS' && <Activity size={11} />}
+            {tab === 'SYSTEM_CONTROLS' && <Sliders size={11} />}
+            <span className="hidden sm:inline">{tab.replace('_', ' ')}</span>
             {tab === 'REPORTS' && (stats?.openReports ?? 0) > 0 && (
-              <span className="px-1.5 py-0.2 bg-red-600 text-white rounded-full text-[9px] font-black">
-                {stats?.openReports}
-              </span>
+              <span className="px-1.5 py-0.5 bg-[#ff3366] text-white text-[8px] font-black" style={{ borderRadius: 0 }}>{stats?.openReports}</span>
             )}
             {tab === 'USERS' && (stats?.pendingGameMasters ?? 0) > 0 && (
-              <span className="px-1.5 py-0.2 bg-amber-500 text-black rounded-full text-[9px] font-black animate-pulse">
-                {stats?.pendingGameMasters}
-              </span>
+              <span className="px-1.5 py-0.5 bg-[#fcce0a] text-black text-[8px] font-black animate-pulse" style={{ borderRadius: 0 }}>{stats?.pendingGameMasters}</span>
             )}
           </button>
         ))}
       </div>
 
-      {/* Main Body */}
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full flex flex-col gap-6">
-        
-        {/* OPERATIONAL OVERVIEW STRIP */}
+      {/* ── MAIN BODY ── */}
+      <main className="relative z-10 flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full flex flex-col gap-5">
+
+        {/* ── TELEMETRY STRIP ── */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-          <div className="bg-[#0f131d] border-2 border-zinc-800 p-3 flex flex-col justify-between">
-            <span className="text-[10px] font-mono uppercase text-zinc-400 flex items-center justify-between">
-              Students <Users size={13} className="text-cyan-400" />
-            </span>
-            <div className="text-2xl font-mono font-black text-cyan-400 mt-1">{stats?.totalStudents ?? '—'}</div>
-            <span className="text-[9px] font-mono text-zinc-500">ENROLLED PLAYERS</span>
+
+          <div className="bg-[#0f1319] border border-[#2d3848] shadow-[3px_3px_0px_#000] p-3.5 flex flex-col gap-1.5 relative" style={{ borderRadius: 0 }}>
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#00ffcc]" />
+            <div className="flex items-center justify-between"><span className="text-[9px] font-bold tracking-[0.2em] text-[#5e6b7c] uppercase">Students</span><Users size={12} className="text-[#00ffcc]" /></div>
+            <div className="font-black text-2xl font-mono text-[#00ffcc]">{stats?.totalStudents ?? '—'}</div>
+            <div className="text-[9px] text-[#3d4754] font-mono uppercase tracking-widest">ENROLLED PLAYERS</div>
           </div>
 
-          <div className="bg-[#0f131d] border-2 border-zinc-800 p-3 flex flex-col justify-between">
-            <span className="text-[10px] font-mono uppercase text-zinc-400 flex items-center justify-between">
-              Game Masters <ShieldCheck size={13} className="text-blue-400" />
-            </span>
-            <div className="text-2xl font-mono font-black text-blue-400 mt-1">{stats?.totalGameMasters ?? '—'}</div>
-            <span className="text-[9px] font-mono text-zinc-500">HOST IDENTITIES</span>
+          <div className="bg-[#0f1319] border border-[#2d3848] shadow-[3px_3px_0px_#000] p-3.5 flex flex-col gap-1.5 relative" style={{ borderRadius: 0 }}>
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#a855f7]" />
+            <div className="flex items-center justify-between"><span className="text-[9px] font-bold tracking-[0.2em] text-[#5e6b7c] uppercase">Game Masters</span><ShieldCheck size={12} className="text-[#a855f7]" /></div>
+            <div className="font-black text-2xl font-mono text-[#a855f7]">{stats?.totalGameMasters ?? '—'}</div>
+            <div className="text-[9px] text-[#3d4754] font-mono uppercase tracking-widest">HOST IDENTITIES</div>
           </div>
 
-          <div 
+          <div
             onClick={() => { setActiveTab('USERS'); setTarget('gamemasters'); setFilterField('approvalStatus'); setFilterValue('PENDING'); executeQuery({ target: 'gamemasters', filters: [{ field: 'approvalStatus', operator: 'EQUALS', value: 'PENDING' }] }); }}
-            className="bg-[#141824] border-2 border-amber-500/80 p-3 flex flex-col justify-between cursor-pointer hover:shadow-[0_0_12px_rgba(245,158,11,0.25)] transition-all"
-          >
-            <span className="text-[10px] font-mono uppercase text-amber-400 flex items-center justify-between font-bold">
-              Pending GM <Clock size={13} className="text-amber-400 animate-pulse" />
-            </span>
-            <div className="text-2xl font-mono font-black text-amber-400 mt-1">{stats?.pendingGameMasters ?? '—'}</div>
-            <span className="text-[9px] font-mono text-amber-300 font-bold">REQUIRES APPROVAL</span>
+            className="bg-[#0f1319] border-2 border-[rgba(252,206,10,0.5)] shadow-[3px_3px_0px_#000] p-3.5 flex flex-col gap-1.5 relative cursor-pointer hover:border-[#fcce0a] transition-all"
+            style={{ borderRadius: 0 }}>
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#fcce0a]" />
+            <div className="flex items-center justify-between"><span className="text-[9px] font-bold tracking-[0.2em] text-[#fcce0a] uppercase">Pending GMs</span><Clock size={12} className="text-[#fcce0a] animate-pulse" /></div>
+            <div className="font-black text-2xl font-mono text-[#fcce0a]">{stats?.pendingGameMasters ?? '—'}</div>
+            <div className="text-[9px] text-[#fcce0a] font-mono uppercase tracking-widest font-bold">REQUIRES APPROVAL</div>
           </div>
 
-          <div className="bg-[#0f131d] border-2 border-zinc-800 p-3 flex flex-col justify-between">
-            <span className="text-[10px] font-mono uppercase text-zinc-400 flex items-center justify-between">
-              Active Sessions <Terminal size={13} className="text-purple-400" />
-            </span>
-            <div className="text-2xl font-mono font-black text-purple-400 mt-1">{stats?.activeSessions ?? '—'}</div>
-            <span className="text-[9px] font-mono text-zinc-500">RUNNING LIVE</span>
+          <div className="bg-[#0f1319] border border-[#2d3848] shadow-[3px_3px_0px_#000] p-3.5 flex flex-col gap-1.5 relative" style={{ borderRadius: 0 }}>
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#ff007f]" />
+            <div className="flex items-center justify-between"><span className="text-[9px] font-bold tracking-[0.2em] text-[#5e6b7c] uppercase">Live Sessions</span><Terminal size={12} className="text-[#ff007f]" /></div>
+            <div className="font-black text-2xl font-mono text-[#ff007f]">{stats?.activeSessions ?? '—'}</div>
+            <div className="text-[9px] text-[#3d4754] font-mono uppercase tracking-widest">RUNNING LIVE</div>
           </div>
 
-          <div 
+          <div
             onClick={() => setActiveTab('REPORTS')}
-            className="bg-[#0f131d] border-2 border-zinc-800 p-3 flex flex-col justify-between cursor-pointer hover:border-red-500 transition-all"
-          >
-            <span className="text-[10px] font-mono uppercase text-zinc-400 flex items-center justify-between">
-              Open Reports <FileText size={13} className="text-red-400" />
-            </span>
-            <div className="text-2xl font-mono font-black text-red-400 mt-1">{stats?.openReports ?? '—'}</div>
-            <span className="text-[9px] font-mono text-zinc-500">UNDER REVIEW</span>
+            className="bg-[#0f1319] border border-[#2d3848] shadow-[3px_3px_0px_#000] p-3.5 flex flex-col gap-1.5 relative cursor-pointer hover:border-[rgba(255,51,102,0.5)] transition-all"
+            style={{ borderRadius: 0 }}>
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#ff3366]" />
+            <div className="flex items-center justify-between"><span className="text-[9px] font-bold tracking-[0.2em] text-[#5e6b7c] uppercase">Open Reports</span><FileText size={12} className="text-[#ff3366]" /></div>
+            <div className="font-black text-2xl font-mono text-[#ff3366]">{stats?.openReports ?? '—'}</div>
+            <div className="text-[9px] text-[#3d4754] font-mono uppercase tracking-widest">UNDER REVIEW</div>
           </div>
 
-          <div className="bg-[#0f131d] border-2 border-zinc-800 p-3 flex flex-col justify-between">
-            <span className="text-[10px] font-mono uppercase text-zinc-400 flex items-center justify-between">
-              Active Events <Activity size={13} className="text-emerald-400" />
-            </span>
-            <div className="text-2xl font-mono font-black text-emerald-400 mt-1">{stats?.activeEvents ?? '—'}</div>
-            <span className="text-[9px] font-mono text-zinc-500">PUBLISHED</span>
+          <div className="bg-[#0f1319] border border-[#2d3848] shadow-[3px_3px_0px_#000] p-3.5 flex flex-col gap-1.5 relative" style={{ borderRadius: 0 }}>
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#3fb950]" />
+            <div className="flex items-center justify-between"><span className="text-[9px] font-bold tracking-[0.2em] text-[#5e6b7c] uppercase">Active Events</span><Activity size={12} className="text-[#3fb950]" /></div>
+            <div className="font-black text-2xl font-mono text-[#3fb950]">{stats?.activeEvents ?? '—'}</div>
+            <div className="text-[9px] text-[#3d4754] font-mono uppercase tracking-widest">PUBLISHED</div>
           </div>
+
         </div>
 
-        {/* FEEDBACK BANNER */}
+        {/* ── FEEDBACK BANNER ── */}
         {feedback && (
-          <div className={`p-3.5 border-l-4 font-mono text-xs flex items-center justify-between ${
-            feedback.type === 'success' 
-              ? 'bg-emerald-950/40 border-emerald-500 text-emerald-300' 
-              : 'bg-red-950/40 border-red-500 text-red-300'
-          }`}>
+          <div className={`p-3.5 border-2 font-mono text-xs flex items-center justify-between shadow-[3px_3px_0px_#000] ${
+            feedback.type === 'success'
+              ? 'border-[rgba(63,185,80,0.5)] bg-[rgba(63,185,80,0.08)] text-[#3fb950]'
+              : 'border-[rgba(255,51,102,0.5)] bg-[rgba(255,51,102,0.08)] text-[#ff3366]'
+          }`} style={{ borderRadius: 0 }}>
             <div className="flex items-center gap-2">
-              {feedback.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-              <span>{feedback.message}</span>
+              {feedback.type === 'success' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+              <span className="font-bold uppercase tracking-wide text-[11px]">{feedback.message}</span>
             </div>
-            <button onClick={() => setFeedback(null)} className="text-[10px] uppercase hover:underline">
-              Dismiss
-            </button>
+            <button onClick={() => setFeedback(null)} className="text-[9px] font-bold uppercase border border-current px-2 py-0.5 hover:bg-current hover:text-black transition-all" style={{ borderRadius: 0 }}>DISMISS</button>
           </div>
         )}
 
@@ -680,11 +743,17 @@ export default function AdminPage() {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleExportExcel(target)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600 text-emerald-300 font-mono text-xs font-bold rounded"
+                    onClick={() => {
+                      if (target === 'students') {
+                        setExportPanelOpen(true);
+                      } else {
+                        handleExportExcel(target);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600 text-emerald-300 font-mono text-xs font-bold"
                   >
                     <FileSpreadsheet size={13} />
-                    <span>EXPORT EXCEL (.XLSX)</span>
+                    <span>{target === 'students' ? 'EXPORT XLSX (6 SHEETS)' : 'EXPORT EXCEL (.XLSX)'}</span>
                   </button>
 
                   {selectedUserIds.length > 0 && (
@@ -819,9 +888,20 @@ export default function AdminPage() {
                     <tr className="bg-[#141824] text-zinc-400 uppercase border-b border-zinc-800">
                       <th className="p-3 w-8"></th>
                       <th className="p-3">Identity</th>
-                      <th className="p-3">Email / USN</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Verification</th>
+                      {target === 'students' ? (
+                        <>
+                          <th className="p-3">Handle</th>
+                          <th className="p-3">USN</th>
+                          <th className="p-3">Branch/Sect</th>
+                          <th className="p-3">Status</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="p-3">Email / USN</th>
+                          <th className="p-3">Status</th>
+                          <th className="p-3">Verification</th>
+                        </>
+                      )}
                       <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -834,7 +914,7 @@ export default function AdminPage() {
                       </tr>
                     ) : (
                       records.map((user) => (
-                        <tr key={user.id} className="hover:bg-[#151c2c]/40 transition-colors">
+                        <tr key={user.id} className="hover:bg-[#151c2c]/40 transition-colors group">
                           <td className="p-3">
                             <input
                               type="checkbox"
@@ -853,53 +933,90 @@ export default function AdminPage() {
                                 {user.role || (target === 'students' ? 'PLAYER' : 'GAME_MASTER')}
                               </span>
                             </div>
-                            <div className="text-[10px] text-zinc-500">ID: {user.id}</div>
+                            <div className="text-[10px] text-zinc-600">ID: {user.id.slice(0, 12)}…</div>
                           </td>
-                          <td className="p-3">
-                            <div className="text-zinc-200">{user.email}</div>
-                            {user.usn && <div className="text-cyan-400 font-bold text-[11px]">{user.usn}</div>}
-                            {user.phoneNumber && <div className="text-zinc-400 text-[11px]">{user.phoneNumber}</div>}
-                          </td>
-                          <td className="p-3">
-                            <div className="flex flex-col gap-1">
-                              {user.accountStatus === 'ACTIVE' && (
-                                <span className="inline-flex items-center gap-1 text-emerald-400 text-[11px] font-bold">
-                                  <CheckCircle2 size={12} /> ACTIVE
-                                </span>
-                              )}
-                              {user.accountStatus === 'BLOCKED' && (
-                                <span className="inline-flex items-center gap-1 text-red-400 text-[11px] font-bold">
-                                  <Ban size={12} /> BLOCKED
-                                </span>
-                              )}
-                              {user.accountStatus === 'SUSPENDED' && (
-                                <span className="inline-flex items-center gap-1 text-amber-400 text-[11px] font-bold">
-                                  <AlertTriangle size={12} /> SUSPENDED
-                                </span>
-                              )}
-                              {user.approvalStatus === 'PENDING' && (
-                                <span className="inline-flex items-center gap-1 text-amber-300 text-[10px] font-bold bg-amber-950/60 px-1.5 py-0.5 border border-amber-700 animate-pulse">
-                                  <Clock size={10} /> GM PENDING
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            {user.isVerified ? (
-                              <span className="text-cyan-400 font-bold flex items-center gap-1 text-[11px]">
-                                <ShieldCheck size={13} /> VERIFIED
-                              </span>
-                            ) : (
-                              <span className="text-zinc-500 text-[11px]">UNVERIFIED</span>
-                            )}
-                          </td>
+                          {target === 'students' ? (
+                            <>
+                              <td className="p-3">
+                                <div className="text-cyan-400 font-bold font-mono text-[11px]">{user.username ? `${user.username}@terminal` : '—'}</div>
+                                <div className="text-zinc-500 text-[10px]">{user.email}</div>
+                              </td>
+                              <td className="p-3">
+                                <div className="text-amber-300 font-mono font-bold text-[11px]">{user.usn || '—'}</div>
+                              </td>
+                              <td className="p-3">
+                                <div className="text-zinc-300 text-[11px]">{user.branch || '—'} {user.section ? `/ ${user.section}` : ''}</div>
+                                <div className={`mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold ${
+                                  user.accountStatus === 'ACTIVE' ? 'text-emerald-400' :
+                                  user.accountStatus === 'BLOCKED' ? 'text-red-400' : 'text-amber-400'
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${
+                                    user.accountStatus === 'ACTIVE' ? 'bg-emerald-400' :
+                                    user.accountStatus === 'BLOCKED' ? 'bg-red-400' : 'bg-amber-400'
+                                  }`}></span>
+                                  {user.accountStatus}
+                                </div>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="p-3">
+                                <div className="text-zinc-200">{user.email}</div>
+                                {user.usn && <div className="text-cyan-400 font-bold text-[11px]">{user.usn}</div>}
+                                {user.phoneNumber && <div className="text-zinc-400 text-[11px]">{user.phoneNumber}</div>}
+                              </td>
+                              <td className="p-3">
+                                <div className="flex flex-col gap-1">
+                                  {user.accountStatus === 'ACTIVE' && (
+                                    <span className="inline-flex items-center gap-1 text-emerald-400 text-[11px] font-bold">
+                                      <CheckCircle2 size={12} /> ACTIVE
+                                    </span>
+                                  )}
+                                  {user.accountStatus === 'BLOCKED' && (
+                                    <span className="inline-flex items-center gap-1 text-red-400 text-[11px] font-bold">
+                                      <Ban size={12} /> BLOCKED
+                                    </span>
+                                  )}
+                                  {user.accountStatus === 'SUSPENDED' && (
+                                    <span className="inline-flex items-center gap-1 text-amber-400 text-[11px] font-bold">
+                                      <AlertTriangle size={12} /> SUSPENDED
+                                    </span>
+                                  )}
+                                  {user.approvalStatus === 'PENDING' && (
+                                    <span className="inline-flex items-center gap-1 text-amber-300 text-[10px] font-bold bg-amber-950/60 px-1.5 py-0.5 border border-amber-700 animate-pulse">
+                                      <Clock size={10} /> GM PENDING
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                {user.isVerified ? (
+                                  <span className="text-cyan-400 font-bold flex items-center gap-1 text-[11px]">
+                                    <ShieldCheck size={13} /> VERIFIED
+                                  </span>
+                                ) : (
+                                  <span className="text-zinc-500 text-[11px]">UNVERIFIED</span>
+                                )}
+                              </td>
+                            </>
+                          )}
                           <td className="p-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
+                              {/* Student Performance Drawer (students only) */}
+                              {target === 'students' && (
+                                <button
+                                  onClick={() => openStudentPerformance(user.id)}
+                                  title="View Student Performance"
+                                  className="p-1.5 bg-[#0b1020] hover:bg-emerald-950 border border-emerald-800 text-emerald-400"
+                                >
+                                  <Activity size={13} />
+                                </button>
+                              )}
                               {/* Open Details */}
                               <button
                                 onClick={() => openUserDetail(user.id)}
                                 title="View Details & Timeline"
-                                className="p-1.5 bg-[#171b26] hover:bg-cyan-950 border border-zinc-700 text-cyan-300 rounded"
+                                className="p-1.5 bg-[#171b26] hover:bg-cyan-950 border border-zinc-700 text-cyan-300"
                               >
                                 <Eye size={13} />
                               </button>
@@ -1729,6 +1846,269 @@ export default function AdminPage() {
           </div>
         )}
       </TerminalModal>
+
+      {/* ── STUDENT PERFORMANCE DRAWER ── */}
+      <TerminalModal
+        isOpen={studentPerf !== null || studentPerfLoading}
+        onClose={() => setStudentPerf(null)}
+        title={studentPerf ? `PERFORMANCE: ${studentPerf.student?.username}@terminal` : 'LOADING...'}
+        maxWidth="lg"
+      >
+        {studentPerfLoading && (
+          <div className="flex items-center justify-center h-40 text-zinc-500 font-mono text-sm animate-pulse">
+            &gt; FETCHING PERFORMANCE DATA...
+          </div>
+        )}
+        {studentPerf && !studentPerfLoading && (
+          <div className="space-y-4 font-mono text-xs">
+            {/* Identity block */}
+            <div className="grid grid-cols-2 gap-3 bg-[#0a0e18] border border-zinc-800 p-4">
+              <div>
+                <div className="text-zinc-500 text-[10px] uppercase mb-0.5">TERMINAL HANDLE</div>
+                <div className="text-cyan-400 font-bold text-base">{studentPerf.student?.handle || `${studentPerf.student?.username}@terminal`}</div>
+              </div>
+              <div>
+                <div className="text-zinc-500 text-[10px] uppercase mb-0.5">FULL NAME</div>
+                <div className="text-white font-bold">{studentPerf.student?.name || '—'}</div>
+              </div>
+              <div>
+                <div className="text-zinc-500 text-[10px] uppercase mb-0.5">USN</div>
+                <div className="text-amber-300 font-bold">{studentPerf.student?.usn || '—'}</div>
+              </div>
+              <div>
+                <div className="text-zinc-500 text-[10px] uppercase mb-0.5">BRANCH / SECTION</div>
+                <div className="text-zinc-200">{studentPerf.student?.branch || '—'} {studentPerf.student?.section ? `/ ${studentPerf.student.section}` : ''}</div>
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: 'RANK', value: `#${studentPerf.performance?.rank || '—'}`, color: 'text-yellow-400' },
+                { label: 'TOTAL POINTS', value: (studentPerf.performance?.totalScore ?? 0).toLocaleString(), color: 'text-cyan-400' },
+                { label: 'GAMES PLAYED', value: studentPerf.performance?.gamesPlayed ?? '0', color: 'text-purple-400' },
+                { label: 'SUCCESS RATE', value: `${studentPerf.performance?.successRate ?? 0}%`, color: (studentPerf.performance?.successRate ?? 0) >= 70 ? 'text-emerald-400' : (studentPerf.performance?.successRate ?? 0) >= 40 ? 'text-amber-400' : 'text-red-400' },
+              ].map(stat => (
+                <div key={stat.label} className="bg-[#0a0e18] border border-zinc-800 p-3 text-center">
+                  <div className={`text-xl font-bold ${stat.color}`}>{stat.value}</div>
+                  <div className="text-zinc-500 text-[10px] mt-1">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Challenges row */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: 'ATTEMPTED', value: studentPerf.performance?.challengesAttempted ?? 0, color: 'text-zinc-200' },
+                { label: 'SOLVED', value: studentPerf.performance?.challengesSolved ?? 0, color: 'text-emerald-400' },
+                { label: 'FAILED', value: (studentPerf.performance?.challengesAttempted ?? 0) - (studentPerf.performance?.challengesSolved ?? 0), color: 'text-red-400' },
+              ].map(stat => (
+                <div key={stat.label} className="bg-[#0a0e18] border border-zinc-800 p-3 text-center">
+                  <div className={`text-lg font-bold ${stat.color}`}>{stat.value}</div>
+                  <div className="text-zinc-500 text-[10px] mt-1">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Team + Club */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-[#0a0e18] border border-zinc-800 p-3">
+                <div className="text-zinc-500 text-[10px] uppercase mb-1">CURRENT TEAM</div>
+                {studentPerf.team ? (
+                  <div>
+                    <div className="text-white font-bold">{studentPerf.team.name}</div>
+                    <div className="text-zinc-500 text-[10px] mt-0.5">{studentPerf.team.memberCount} member{studentPerf.team.memberCount !== 1 ? 's' : ''} · {studentPerf.team.role}</div>
+                  </div>
+                ) : (
+                  <div className="text-zinc-600">NO TEAM</div>
+                )}
+              </div>
+              <div className="bg-[#0a0e18] border border-zinc-800 p-3">
+                <div className="text-zinc-500 text-[10px] uppercase mb-1">CLUBS</div>
+                {studentPerf.clubs?.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {studentPerf.clubs.map((c: any) => (
+                      <span key={c.slug} className="text-[10px] bg-purple-950/60 border border-purple-700 text-purple-300 px-1.5 py-0.5">{c.name}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-zinc-600">NO CLUBS</div>
+                )}
+              </div>
+            </div>
+
+            {/* Game History */}
+            {studentPerf.gameHistory?.length > 0 && (
+              <div>
+                <div className="text-zinc-500 text-[10px] uppercase mb-2 border-b border-zinc-800 pb-1">GAME HISTORY</div>
+                <div className="space-y-1 max-h-56 overflow-y-auto">
+                  {studentPerf.gameHistory.map((g: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between bg-[#0a0e18] border border-zinc-800/60 px-3 py-2">
+                      <div>
+                        <span className="text-white font-bold">{g.gameName}</span>
+                        <span className="text-zinc-500 ml-2 text-[10px]">#{g.roomCode}</span>
+                        {g.teamName && <span className="text-purple-400 ml-2 text-[10px]">TEAM: {g.teamName}</span>}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-cyan-400 font-bold">{g.score} pts</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 font-bold border ${
+                          g.result === 'COMPLETED' ? 'text-emerald-400 border-emerald-700 bg-emerald-950/50' :
+                          g.result === 'PENDING' ? 'text-amber-400 border-amber-700 bg-amber-950/50' :
+                          'text-zinc-400 border-zinc-700'
+                        }`}>{g.result}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </TerminalModal>
+
+      {/* ── FULL EXCEL EXPORT PANEL ── */}
+      {exportPanelOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#090d16] border border-cyan-700 w-full max-w-lg font-mono shadow-2xl shadow-cyan-900/20">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-cyan-700 bg-[#0b1120]">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet size={16} className="text-emerald-400" />
+                <span className="text-white font-bold text-sm">STUDENT DATA EXPORT</span>
+                <span className="text-[10px] text-emerald-400 border border-emerald-700 bg-emerald-950/50 px-1.5 py-0.5">6 SHEETS</span>
+              </div>
+              <button onClick={() => setExportPanelOpen(false)} className="text-zinc-500 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Filters */}
+            <div className="p-5 space-y-3">
+              <div className="text-zinc-500 text-[10px] uppercase border-b border-zinc-800 pb-1 mb-3">FILTER EXPORT SCOPE</div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-500 text-[10px] uppercase block mb-1">Branch</label>
+                  <input
+                    className="w-full bg-[#0a0e18] border border-zinc-700 text-white text-xs px-2 py-1.5 focus:outline-none focus:border-cyan-600"
+                    placeholder="e.g. CSE"
+                    value={exportFilters.branch}
+                    onChange={e => setExportFilters(f => ({ ...f, branch: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-500 text-[10px] uppercase block mb-1">Section</label>
+                  <input
+                    className="w-full bg-[#0a0e18] border border-zinc-700 text-white text-xs px-2 py-1.5 focus:outline-none focus:border-cyan-600"
+                    placeholder="e.g. A"
+                    value={exportFilters.section}
+                    onChange={e => setExportFilters(f => ({ ...f, section: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-500 text-[10px] uppercase block mb-1">Club Slug</label>
+                  <input
+                    className="w-full bg-[#0a0e18] border border-zinc-700 text-white text-xs px-2 py-1.5 focus:outline-none focus:border-cyan-600"
+                    placeholder="e.g. circuit-breakers"
+                    value={exportFilters.clubSlug}
+                    onChange={e => setExportFilters(f => ({ ...f, clubSlug: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-500 text-[10px] uppercase block mb-1">Account Status</label>
+                  <select
+                    className="w-full bg-[#0a0e18] border border-zinc-700 text-white text-xs px-2 py-1.5 focus:outline-none focus:border-cyan-600"
+                    value={exportFilters.accountStatus}
+                    onChange={e => setExportFilters(f => ({ ...f, accountStatus: e.target.value }))}
+                  >
+                    <option value="">ALL STATUSES</option>
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="BLOCKED">BLOCKED</option>
+                    <option value="SUSPENDED">SUSPENDED</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-zinc-500 text-[10px] uppercase block mb-1">Min Score</label>
+                  <input
+                    type="number"
+                    className="w-full bg-[#0a0e18] border border-zinc-700 text-white text-xs px-2 py-1.5 focus:outline-none focus:border-cyan-600"
+                    placeholder="0"
+                    value={exportFilters.minScore}
+                    onChange={e => setExportFilters(f => ({ ...f, minScore: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-500 text-[10px] uppercase block mb-1">Max Score</label>
+                  <input
+                    type="number"
+                    className="w-full bg-[#0a0e18] border border-zinc-700 text-white text-xs px-2 py-1.5 focus:outline-none focus:border-cyan-600"
+                    placeholder="∞"
+                    value={exportFilters.maxScore}
+                    onChange={e => setExportFilters(f => ({ ...f, maxScore: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-zinc-500 text-[10px] uppercase block mb-1">Search (Name / Handle / USN / Email)</label>
+                <input
+                  className="w-full bg-[#0a0e18] border border-zinc-700 text-white text-xs px-2 py-1.5 focus:outline-none focus:border-cyan-600"
+                  placeholder="Search students..."
+                  value={exportFilters.search}
+                  onChange={e => setExportFilters(f => ({ ...f, search: e.target.value }))}
+                />
+              </div>
+
+              {/* Sheet preview */}
+              <div className="bg-[#0a0e18] border border-zinc-800 p-3 space-y-1">
+                <div className="text-zinc-500 text-[10px] uppercase mb-2">SHEETS INCLUDED IN EXPORT</div>
+                {['STUDENTS', 'GAME PERFORMANCE', 'GAME SUMMARY', 'TEAMS', 'CLUBS', 'PARTICIPATION'].map((sheet, i) => (
+                  <div key={sheet} className="flex items-center gap-2 text-[11px]">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
+                    <span className="text-emerald-300 font-bold">SHEET {i + 1}</span>
+                    <span className="text-zinc-400">{sheet}</span>
+                  </div>
+                ))}
+              </div>
+
+              {exportCount !== null && (
+                <div className="text-emerald-400 text-[11px] border border-emerald-700 bg-emerald-950/50 px-3 py-2">
+                  ✓ LAST EXPORT: {exportCount} students
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-800 bg-[#0b1120]">
+              <button
+                onClick={() => setExportFilters({ branch: '', section: '', clubSlug: '', accountStatus: '', minScore: '', maxScore: '', search: '' })}
+                className="text-zinc-500 hover:text-zinc-300 text-xs"
+              >
+                CLEAR FILTERS
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setExportPanelOpen(false)}
+                  className="px-3 py-1.5 border border-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleFullExport}
+                  disabled={exportLoading}
+                  className="flex items-center gap-2 px-4 py-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-black font-bold text-xs"
+                >
+                  {exportLoading ? (
+                    <><RefreshCw size={13} className="animate-spin" /> GENERATING...</>
+                  ) : (
+                    <><Download size={13} /> EXPORT .XLSX</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
