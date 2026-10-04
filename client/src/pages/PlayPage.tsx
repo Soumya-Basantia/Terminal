@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { connectSocket } from '../lib/socket';
 import type { SafeChallenge, SessionStatePayload, LeaderboardEntry } from '../types';
-import { Trophy, Wifi, WifiOff, CheckCircle, XCircle } from 'lucide-react';
+import { Trophy, Wifi, WifiOff, CheckCircle, XCircle, Users } from 'lucide-react';
 import LogicHeistChallenge from '../components/LogicHeistChallenge';
 import BugHuntChallenge from '../components/BugHuntChallenge';
 import WitnessChallenge from '../components/WitnessChallenge';
@@ -11,7 +11,8 @@ import MissionChallenge from '../components/MissionChallenge';
 import RouterChallenge from '../components/RouterChallenge';
 import ThresholdChallenge from '../components/ThresholdChallenge';
 import api from '../lib/api';
-import { TeamChatBox } from '../features/terminal/components/TeamChatBox';
+import { TeamPanel } from '../features/terminal/components/panels/TeamPanel';
+import { TerminalInput } from '../features/terminal/components/TerminalInput';
 import { TerminalLoading, TerminalWarning, TerminalOutputError } from '../features/terminal/components/TerminalSystemState';
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
@@ -76,10 +77,29 @@ export default function PlayPage() {
   const [poll, setPoll] = useState<{ id: string; question: string; options: string[]; results?: Record<number, number> } | null>(null);
   const [pollAnswered, setPollAnswered] = useState(false);
   const [roundEnded, setRoundEnded] = useState<string | null>(null);
+  const [isTeamOpen, setIsTeamOpen] = useState(false);
+  const [unreadTeamCount, setUnreadTeamCount] = useState(0);
+  const [terminalNotice, setTerminalNotice] = useState<string | null>(null);
   const socketRef = useRef<any>(null);
 
   const user = JSON.parse(localStorage.getItem('terminal_user') || 'null');
   const player = user || JSON.parse(localStorage.getItem('terminal_player') || 'null');
+
+  useEffect(() => {
+    if (isTeamOpen) {
+      setUnreadTeamCount(0);
+    }
+  }, [isTeamOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isTeamOpen) {
+        setIsTeamOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isTeamOpen]);
 
   useEffect(() => {
     if (!player) {
@@ -198,8 +218,22 @@ export default function PlayPage() {
     socket.on('broadcast:created', onBroadcastCreated);
     socket.on('round:ended', onRoundEnded);
     socket.on('poll:created', onPollCreated);
+    const handleTeamMsg = () => {
+      setIsTeamOpen(curr => {
+        if (!curr) {
+          setUnreadTeamCount(c => c + 1);
+        }
+        return curr;
+      });
+    };
+    const handleChatCleared = () => {
+      setUnreadTeamCount(0);
+    };
+
     socket.on('poll:closed', onPollClosed);
     socket.on('player:removed', onPlayerRemoved);
+    socket.on('team:message', handleTeamMsg);
+    socket.on('team:chat_cleared', handleChatCleared);
 
     if (socket.connected) {
       onConnect();
@@ -221,8 +255,46 @@ export default function PlayPage() {
       socket.off('poll:created', onPollCreated);
       socket.off('poll:closed', onPollClosed);
       socket.off('player:removed', onPlayerRemoved);
+      socket.off('team:message', handleTeamMsg);
+      socket.off('team:chat_cleared', handleChatCleared);
     };
   }, [code]);
+
+  const rawPromptName = player?.username || player?.name || player?.displayName || 'player';
+  const promptUser = rawPromptName.toLowerCase().trim().split(' ')[0].replace(/[^a-z0-9_-]/g, '') || 'player';
+
+  const handleTerminalCommand = (rawInput: string) => {
+    const trimmed = rawInput.trim();
+    if (!trimmed) return;
+    const parts = trimmed.split(' ');
+    const cmd = parts[0].toLowerCase();
+    const arg = parts.slice(1).join(' ');
+
+    if (cmd === 'submit') {
+      if (arg) {
+        submitAnswer(arg.toUpperCase());
+        setTerminalNotice(`> SUBMITTED: ${arg.toUpperCase()}`);
+      } else {
+        setTerminalNotice(`> ERROR: specify answer (e.g., submit A)`);
+      }
+    } else if (cmd === 'team') {
+      setIsTeamOpen(prev => !prev);
+      setTerminalNotice(isTeamOpen ? `> TEAM PANEL CLOSED` : `> TEAM PANEL EXPANDED`);
+    } else if (cmd === 'score') {
+      setTerminalNotice(`> CURRENT SCORE: ${myScore} PTS`);
+    } else if (cmd === 'status') {
+      setTerminalNotice(`> ARENA STATUS: ${gameState} // ROOM: ${code}`);
+    } else if (cmd === 'help') {
+      setTerminalNotice(`> COMMANDS: submit <ans> | team | score | status | clear`);
+    } else if (cmd === 'clear') {
+      setTerminalNotice(null);
+    } else if (['a', 'b', 'c', 'd'].includes(cmd)) {
+      submitAnswer(cmd.toUpperCase());
+      setTerminalNotice(`> SUBMITTED: ${cmd.toUpperCase()}`);
+    } else {
+      setTerminalNotice(`> UNKNOWN COMMAND: ${cmd}. Type 'help' for options.`);
+    }
+  };
 
   async function submitAnswer(answer: string | string[]) {
     if (submitted || !currentChallenge) return;
@@ -398,7 +470,27 @@ export default function PlayPage() {
         </div>
       </div>
 
-      {/* Poll overlay */}
+      {/* Central Area: Main Game Challenge + Expandable Team Side Workspace */}
+      <div className="flex-1 flex overflow-hidden min-h-0 relative">
+        <main className="flex-1 overflow-y-auto flex flex-col relative transition-all duration-200">
+          {/* Quick Floating [TEAM >] Trigger on right edge when panel is closed */}
+          {!isTeamOpen && (
+            <button
+              onClick={() => setIsTeamOpen(true)}
+              className="absolute top-3 right-4 z-20 px-2.5 py-1 bg-[#090d16] hover:bg-[#121622] border border-cyan-500/70 text-cyan-300 font-mono text-[11px] font-bold flex items-center gap-1.5 shadow-[2px_2px_0px_#000] cursor-pointer transition-colors"
+              title="Open Squad Workspace & Live Chat (team)"
+            >
+              <Users size={12} className="text-cyan-400" />
+              <span>TEAM &gt;</span>
+              {unreadTeamCount > 0 && (
+                <span className="px-1 py-0.2 bg-amber-500 text-black text-[9px] font-black animate-pulse">
+                  ● {unreadTeamCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Poll overlay */}
       {poll && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100,
@@ -599,20 +691,55 @@ export default function PlayPage() {
         )}
       </div>
       )}
+        </main>
 
-      {/* Timer — bottom fixed */}
+        {/* Dynamic Expandable Side Panel (Right) — takes 28-36% viewport width, fast transition */}
+        <aside 
+          aria-label="Command Telemetry Panel"
+          className={`transition-all duration-200 ease-out overflow-hidden flex flex-col shrink-0 z-20 ${
+            isTeamOpen 
+              ? 'w-[32%] min-w-[320px] max-w-[460px] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:w-full max-md:z-30 opacity-100 pointer-events-auto border-l-2 border-cyan-500/80 shadow-[-6px_0_24px_rgba(0,0,0,0.7)]' 
+              : 'w-0 min-w-0 max-w-0 opacity-0 pointer-events-none border-l-0'
+          }`}
+        >
+          {isTeamOpen && (
+            <TeamPanel onClose={() => setIsTeamOpen(false)} />
+          )}
+        </aside>
+      </div>
+
+      {/* Timer — bottom fixed above terminal bar */}
       {hasChallengeTimer && (
         <div style={{
-          position: 'fixed', bottom: 24, right: 24,
+          position: 'fixed', bottom: 74, right: isTeamOpen ? 'calc(32% + 24px)' : 24,
           background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
-          borderRadius: 999, padding: '4px 4px',
+          borderRadius: 999, padding: '4px 4px', zIndex: 30,
         }}>
           <TimerRing endsAt={currentChallenge.challengeEndsAt} timerSecs={currentChallenge.timerSecs} />
         </div>
       )}
 
-      {/* Real-time Team Chat Dock for Live Games */}
-      <TeamChatBox isOpen={false} onClose={() => {}} isGameMode={true} roomCode={code} />
+      {/* PERMANENT TERMINAL ENTRY / COMMAND BAR — ALWAYS DOCKED AT THE BOTTOM */}
+      <div className="p-2 sm:p-2.5 bg-[#0a0d16] border-t-2 border-cyan-500/60 shadow-[0_-4px_16px_rgba(0,0,0,0.6)] shrink-0 z-30 w-full font-mono">
+        {terminalNotice && (
+          <div className="text-[11px] text-cyan-300 pb-1 flex items-center justify-between">
+            <span>{terminalNotice}</span>
+            <button onClick={() => setTerminalNotice(null)} className="text-zinc-500 hover:text-zinc-300 text-[10px]">✕</button>
+          </div>
+        )}
+        <TerminalInput 
+          username={promptUser} 
+          onCommand={handleTerminalCommand} 
+          onClear={() => setTerminalNotice(null)} 
+          onEscape={() => setIsTeamOpen(false)}
+        />
+        <div className="mt-1 text-[9px] text-zinc-500 font-mono tracking-wider flex flex-wrap gap-4 select-none">
+          <span>ENTER <span className="text-zinc-600">submit</span></span>
+          <span>team <span className="text-zinc-600">toggle squad</span></span>
+          <span>ESC <span className="text-zinc-600">close panel</span></span>
+          <span>help <span className="text-zinc-600">commands</span></span>
+        </div>
+      </div>
     </div>
   );
 }
