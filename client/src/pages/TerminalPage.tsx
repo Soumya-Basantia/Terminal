@@ -68,7 +68,8 @@ export default function TerminalPage() {
   };
 
 
-  const username = workspace?.student?.name || user?.name || user?.username || 'student';
+  // Authoritative Public Operator Username (never USN or full display name)
+  const username = workspace?.student?.username || user?.username || 'student';
 
   if (loading) {
     return (

@@ -129,35 +129,65 @@ export const TerminalInput: React.FC<TerminalInputProps> = ({
   };
 
   return (
-    <div className="flex items-center text-zinc-100 font-mono w-full text-xs sm:text-sm">
-      <div className="flex items-center mr-2 shrink-0">
-        {isExecuting ? (
-          <TerminalSprite animation="processing" size={16} className="mr-1.5 shrink-0" />
-        ) : (
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-2 shrink-0 animate-pulse" />
-        )}
-        <span className="text-emerald-400 font-bold select-none whitespace-nowrap">
-          {username}@terminal:~$
-        </span>
+    <div className="flex items-center justify-between text-zinc-100 font-mono w-full text-xs sm:text-sm bg-[#06080e] border border-[#1c2638] focus-within:border-cyan-500/80 px-2.5 py-1.5 transition-colors">
+      <div className="flex items-center flex-1 min-w-0 mr-2">
+        {/* Live Status indicator */}
+        <div className="flex items-center mr-2.5 shrink-0 select-none">
+          {isExecuting ? (
+            <TerminalSprite animation="processing" size={14} className="mr-1 shrink-0" />
+          ) : (
+            <span className="flex items-center gap-1 px-1.5 py-0.2 bg-emerald-950/70 border border-emerald-500/60 text-emerald-400 font-black text-[9px] tracking-wider uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              LIVE
+            </span>
+          )}
+        </div>
+
+        {/* Strong Prompt */}
+        <div className="flex items-center mr-2 shrink-0 select-none">
+          <span className="text-cyan-400 font-bold whitespace-nowrap">
+            {username}@terminal:~$
+          </span>
+        </div>
+
+        {/* Monospaced Command Buffer */}
+        <div className="flex-1 flex items-center relative min-w-0">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="w-full bg-transparent border-none outline-none text-zinc-100 focus:ring-0 p-0 shadow-none caret-cyan-400 font-mono text-xs sm:text-sm"
+            spellCheck={false}
+            autoComplete="off"
+            placeholder={isExecuting ? 'Processing command...' : (placeholder || '')}
+            disabled={isExecuting}
+            autoFocus
+          />
+          {input.length === 0 && !isExecuting && (
+            <span className="inline-block w-2 h-3.5 bg-cyan-400 animate-pulse pointer-events-none select-none -ml-px" />
+          )}
+        </div>
       </div>
-      <div className="flex-1 flex items-center relative min-w-0">
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="w-full bg-transparent border-none outline-none text-zinc-100 focus:ring-0 p-0 shadow-none caret-cyan-400 font-mono text-xs sm:text-sm"
-          spellCheck={false}
-          autoComplete="off"
-          placeholder={isExecuting ? 'Processing command...' : (placeholder || '')}
-          disabled={isExecuting}
-          autoFocus
-        />
-        {input.length === 0 && !isExecuting && (
-          <span className="inline-block w-2 h-4 bg-cyan-400 animate-pulse pointer-events-none select-none -ml-px" />
-        )}
-      </div>
+
+      {/* Return / Enter indicator */}
+      <button
+        type="button"
+        onClick={() => {
+          if (input.trim() || !isExecuting) {
+            const cmd = input.trim();
+            if (cmd) setHistory(prev => [...prev, cmd]);
+            setHistoryIndex(-1);
+            setInput('');
+            onCommand(input);
+          }
+        }}
+        className="px-1.5 py-0.5 bg-[#0f1422] hover:bg-cyan-500 hover:text-black border border-[#1c2638] text-zinc-400 text-[10px] font-bold shrink-0 transition-colors cursor-pointer select-none"
+        title="Execute Command (Enter)"
+      >
+        ↵
+      </button>
     </div>
   );
 };

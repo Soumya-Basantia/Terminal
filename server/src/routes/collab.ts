@@ -72,35 +72,55 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
         orderBy: { createdAt: 'desc' }
       }),
 
-      // 4. Campus Directory of registered active students
+      // 4. Campus Directory of registered active students (strictly real operatives, excluding test fixtures)
       prisma.user.findMany({
         where: {
           id: { not: userId },
           accountStatus: 'ACTIVE',
-          role: 'PLAYER'
+          role: 'PLAYER',
+          NOT: [
+            { email: { endsWith: '@test.com' } },
+            { email: { endsWith: '@terminal.test' } },
+            { email: { endsWith: '.test' } },
+            { username: { startsWith: 'S1_' } },
+            { username: { startsWith: 'S2_' } },
+            { username: { startsWith: 'ST_' } },
+            { username: { startsWith: 'LN_' } },
+            { username: { startsWith: 'CN_' } },
+            { username: { startsWith: 'SA_' } },
+            { username: { startsWith: 'GM_' } },
+            { username: { startsWith: 'C1A_' } },
+            { username: { startsWith: 'C2A_' } },
+            { username: { startsWith: 'cap_u' } },
+            { username: { startsWith: 'room_p' } },
+            { username: { startsWith: 'api_user_' } },
+            { username: { startsWith: 'hostrf_' } },
+            { username: { startsWith: 'sturf_' } },
+            { name: { startsWith: 'Student_Alpha_' } },
+            { name: { startsWith: 'Student_Beta_' } },
+            { name: { startsWith: 'AnalystBob_' } },
+            { name: { startsWith: 'Member ' } },
+            { name: { startsWith: 'Player ' } },
+          ]
         },
         select: {
           id: true,
           username: true,
-          name: true,
-          usn: true,
-          branch: true,
-          section: true
+          name: true
         },
         orderBy: { username: 'asc' },
         take: 50
       })
     ]);
 
+    const connectedPeerIds = new Set(collaborations.map(c => c.peer.id));
+    const pendingReceiverIds = new Set(outgoingRequests.map(r => r.receiver.id));
+
     res.json({
       contacts: collaborations.map(c => ({
         id: c.peer.id,
         handle: `${c.peer.username}@terminal`,
         username: c.peer.username,
-        name: c.peer.name || c.peer.username,
-        usn: c.peer.usn,
-        branch: c.peer.branch,
-        section: c.peer.section,
         connectedAt: c.createdAt,
         isOnline: isUserOnline(c.peer.id)
       })),
@@ -109,9 +129,6 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
         senderId: r.sender.id,
         handle: `${r.sender.username}@terminal`,
         username: r.sender.username,
-        name: r.sender.name || r.sender.username,
-        usn: r.sender.usn,
-        branch: r.sender.branch,
         createdAt: r.createdAt
       })),
       outgoing: outgoingRequests.map(r => ({
@@ -119,21 +136,23 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
         receiverId: r.receiver.id,
         handle: `${r.receiver.username}@terminal`,
         username: r.receiver.username,
-        name: r.receiver.name || r.receiver.username,
-        usn: r.receiver.usn,
-        branch: r.receiver.branch,
         createdAt: r.createdAt
       })),
-      directory: campusUsers.map(u => ({
-        id: u.id,
-        handle: `${u.username}@terminal`,
-        username: u.username,
-        name: u.name || u.username,
-        usn: u.usn,
-        branch: u.branch,
-        section: u.section,
-        isOnline: isUserOnline(u.id)
-      }))
+      directory: campusUsers.map(u => {
+        let relation: 'CONNECTED' | 'PENDING' | 'ADD' = 'ADD';
+        if (connectedPeerIds.has(u.id)) {
+          relation = 'CONNECTED';
+        } else if (pendingReceiverIds.has(u.id)) {
+          relation = 'PENDING';
+        }
+
+        return {
+          handle: `${u.username}@terminal`,
+          username: u.username,
+          isOnline: isUserOnline(u.id),
+          relation
+        };
+      })
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to retrieve collaboration network', details: err.message });

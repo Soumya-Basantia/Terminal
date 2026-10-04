@@ -77,7 +77,7 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
   }, []);
 
   const student = workspaceData?.student || {
-    name: username,
+    name: username.toUpperCase(),
     username: username,
     usn: 'AUTHENTICATED',
     email: `${username.toLowerCase()}@terminal.edu`,
@@ -86,9 +86,9 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
     role: 'PLAYER'
   };
 
-  // Clean prompt username
-  const rawPromptName = student.username || student.name || username || 'student';
-  const promptUser = rawPromptName.toLowerCase().trim().split(' ')[0].replace(/[^a-z0-9_-]/g, '') || 'student';
+  // Authoritative Public Operator Handle (never USN or split first name)
+  const rawPromptName = student.username || username || 'student';
+  const promptUser = rawPromptName.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '') || 'student';
 
   const progress = workspaceData?.progress || {
     totalScore: 0,

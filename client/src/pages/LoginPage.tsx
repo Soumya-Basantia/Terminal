@@ -39,6 +39,7 @@ export default function LoginPage() {
   // ── Student registration state ─────────────────────────────────────────────
   const [studentForm, setStudentForm] = useState({
     name: '',
+    username: '',
     usn: '',
     email: '',
     branch: 'CSE',
@@ -136,8 +137,13 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
+      const cleanUsername = studentForm.username.trim()
+        ? studentForm.username.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '')
+        : studentForm.name.trim().toLowerCase().split(' ')[0].replace(/[^a-z0-9_-]/g, '');
+
       await api.post('/auth/register', {
         name: studentForm.name.trim(),
+        username: cleanUsername,
         usn: studentForm.usn.trim().toUpperCase(),
         email: studentForm.email.trim(),
         branch: studentForm.branch,
@@ -620,7 +626,21 @@ export default function LoginPage() {
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="block text-[10px] font-mono font-bold text-[#00E5FF] uppercase">&gt; USN / ROLL NO</label>
+                            <label className="block text-[10px] font-mono font-bold text-[#00E5FF] uppercase">&gt; TERMINAL HANDLE (PUBLIC)</label>
+                            <input
+                              type="text"
+                              value={studentForm.username}
+                              onChange={(e) => setStudentForm({ ...studentForm, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
+                              placeholder="e.g. domo, alex"
+                              className="w-full bg-[#06080d] border-2 border-[#202938] focus:border-[#00E5FF] focus:outline-hidden text-[#00E5FF] font-mono text-xs px-3 py-2 rounded-xs lowercase"
+                            />
+                            <span className="text-[9px] text-[#74879e] font-mono block">Handle: @{studentForm.username || 'username'}@terminal</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div className="space-y-1">
+                            <label className="block text-[10px] font-mono font-bold text-[#00E5FF] uppercase">&gt; USN / ROLL NO (ACADEMIC)</label>
                             <input
                               type="text"
                               value={studentForm.usn}
@@ -630,18 +650,17 @@ export default function LoginPage() {
                               className="w-full bg-[#06080d] border-2 border-[#202938] focus:border-[#00E5FF] focus:outline-hidden text-white font-mono text-xs px-3 py-2 rounded-xs uppercase"
                             />
                           </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="block text-[10px] font-mono font-bold text-[#00E5FF] uppercase">&gt; EMAIL ADDRESS</label>
-                          <input
-                            type="email"
-                            value={studentForm.email}
-                            onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
-                            placeholder="student@campus.edu"
-                            required
-                            className="w-full bg-[#06080d] border-2 border-[#202938] focus:border-[#00E5FF] focus:outline-hidden text-white font-mono text-xs px-3 py-2 rounded-xs"
-                          />
+                          <div className="space-y-1">
+                            <label className="block text-[10px] font-mono font-bold text-[#00E5FF] uppercase">&gt; EMAIL ADDRESS</label>
+                            <input
+                              type="email"
+                              value={studentForm.email}
+                              onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
+                              placeholder="student@campus.edu"
+                              required
+                              className="w-full bg-[#06080d] border-2 border-[#202938] focus:border-[#00E5FF] focus:outline-hidden text-white font-mono text-xs px-3 py-2 rounded-xs"
+                            />
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2.5">

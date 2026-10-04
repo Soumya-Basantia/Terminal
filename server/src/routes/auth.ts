@@ -184,7 +184,9 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     }
 
     const hashed = await bcrypt.hash(password, 10);
-    const finalUsername = username || generateUsername(usn, `std_${Date.now()}`);
+    // CRITICAL: Username (public handle) must never be derived from USN
+    const finalUsername = (username ? generateUsername(username, '') : '') || 
+                          generateUsername(name.split(' ')[0], generateUsername(email.split('@')[0], `op_${Date.now()}`));
 
     const user = await prisma.user.create({
       data: {
