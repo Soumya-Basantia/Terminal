@@ -638,13 +638,13 @@ export default function AdminPage() {
       <main className="relative z-10 flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full flex flex-col gap-5">
 
         {/* ── TELEMETRY STRIP ── */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
 
-          <div className="bg-[#0f1319] border border-[#2d3848] shadow-[3px_3px_0px_#000] p-3.5 flex flex-col gap-1.5 relative" style={{ borderRadius: 0 }}>
+          <div className="bg-[#0f131d] border border-[#2d3848] shadow-[3px_3px_0px_#000] p-2.5 sm:p-3.5 flex flex-col gap-1.5 relative min-w-0" style={{ borderRadius: 0 }}>
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-[#00ffcc]" />
-            <div className="flex items-center justify-between"><span className="text-[9px] font-bold tracking-[0.2em] text-[#5e6b7c] uppercase">Students</span><Users size={12} className="text-[#00ffcc]" /></div>
-            <div className="font-black text-2xl font-mono text-[#00ffcc]">{stats?.totalStudents ?? '—'}</div>
-            <div className="text-[9px] text-[#3d4754] font-mono uppercase tracking-widest">ENROLLED PLAYERS</div>
+            <div className="flex items-center justify-between"><span className="text-[9px] font-bold tracking-[0.2em] text-[#5e6b7c] uppercase truncate">Students</span><Users size={12} className="text-[#00ffcc] shrink-0" /></div>
+            <div className="font-black text-xl sm:text-2xl font-mono text-[#00ffcc] truncate">{stats?.totalStudents ?? '—'}</div>
+            <div className="text-[8.5px] sm:text-[9px] text-[#3d4754] font-mono uppercase tracking-widest truncate">ENROLLED PLAYERS</div>
           </div>
 
           <div className="bg-[#0f1319] border border-[#2d3848] shadow-[3px_3px_0px_#000] p-3.5 flex flex-col gap-1.5 relative" style={{ borderRadius: 0 }}>
@@ -1392,8 +1392,8 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="bg-[#0f131d] border-2 border-zinc-800 overflow-hidden">
-              <table className="w-full text-left font-mono text-xs border-collapse">
+            <div className="bg-[#0f131d] border-2 border-zinc-800 overflow-x-auto">
+              <table className="w-full text-left font-mono text-xs border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-[#141824] text-zinc-400 uppercase border-b border-zinc-800">
                     <th className="p-3">Timestamp</th>

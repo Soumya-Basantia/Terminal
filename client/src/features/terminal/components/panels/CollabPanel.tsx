@@ -223,9 +223,9 @@ export const CollabPanel: React.FC<CollabPanelProps> = ({
                   {searchQuery ? `No operatives matching "${searchQuery}"` : 'No registered campus operatives available.'}
                 </div>
               ) : (
-                filteredDirectory.map((op) => (
+                filteredDirectory.map((op, index) => (
                   <div
-                    key={op.handle}
+                    key={op.handle || op.username || `op-${index}`}
                     className="bg-[#090d16] border border-[#1c2638] hover:border-zinc-700 px-2.5 py-2 flex items-center justify-between gap-2 transition-colors"
                   >
                     {/* Public Handle + Presence Dot */}
@@ -282,9 +282,9 @@ export const CollabPanel: React.FC<CollabPanelProps> = ({
                   <p className="text-[10px]">Switch to OPERATIVES tab and click [+ ADD] or execute `collab add &lt;handle&gt;`.</p>
                 </div>
               ) : (
-                contacts.map((c) => (
+                contacts.map((c, index) => (
                   <div
-                    key={c.id}
+                    key={c.handle || c.username || c.id || `contact-${index}`}
                     className="bg-[#090d16] border border-[#1c2638] px-2.5 py-2 flex items-center justify-between gap-2"
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -321,9 +321,9 @@ export const CollabPanel: React.FC<CollabPanelProps> = ({
                   No incoming requests pending.
                 </div>
               ) : (
-                incoming.map((r) => (
+                incoming.map((r, index) => (
                   <div
-                    key={r.id}
+                    key={r.handle || r.username || r.id || `incoming-${index}`}
                     className="bg-[#090d16] border border-cyan-500/60 p-2.5 flex items-center justify-between gap-2"
                   >
                     <div>
@@ -355,9 +355,9 @@ export const CollabPanel: React.FC<CollabPanelProps> = ({
                   No outgoing requests sent.
                 </div>
               ) : (
-                outgoing.map((r) => (
+                outgoing.map((r, index) => (
                   <div
-                    key={r.id}
+                    key={r.handle || r.username || r.id || `outgoing-${index}`}
                     className="bg-[#090d16] border border-[#1c2638] p-2 flex items-center justify-between text-[11px]"
                   >
                     <span className="text-purple-300 font-bold font-mono">{r.handle}</span>

@@ -95,16 +95,16 @@ function MetricCard({
 }) {
   return (
     <div
-      className="bg-[#0f1319] border border-[#2d3848] p-4 relative flex flex-col gap-2 shadow-[4px_4px_0px_#000]"
+      className="bg-[#0f1319] border border-[#2d3848] p-3 sm:p-4 relative flex flex-col gap-1.5 sm:gap-2 shadow-[4px_4px_0px_#000] min-w-0"
       style={{ borderRadius: 0 }}>
       {/* accent bar */}
       <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: accent }} />
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold tracking-[0.2em] text-[#5e6b7c] uppercase">{label}</span>
-        <Icon size={13} style={{ color: accent }} />
+        <span className="text-[9px] sm:text-[10px] font-bold tracking-[0.2em] text-[#5e6b7c] uppercase truncate">{label}</span>
+        <Icon size={13} style={{ color: accent }} className="shrink-0" />
       </div>
-      <div className="font-black text-3xl font-mono" style={{ color: accent }}>{value}</div>
-      {sub && <div className="text-[9px] text-[#3d4754] font-mono uppercase tracking-widest">{sub}</div>}
+      <div className="font-black text-[clamp(1.4rem,4.5vw,2rem)] font-mono truncate" style={{ color: accent }}>{value}</div>
+      {sub && <div className="text-[8.5px] sm:text-[9px] text-[#3d4754] font-mono uppercase tracking-widest truncate">{sub}</div>}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { authenticate, AuthRequest, requireSuperAdmin } from '../middleware/auth
 const router = Router();
 
 // GET /api/clubs
-// Get clubs for the currently authenticated user
+// Get active clubs for the currently authenticated user (CODENEX ONLY)
 router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
@@ -15,24 +15,33 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    if (user.role === 'SUPER_ADMIN') {
-      const clubs = await prisma.club.findMany({ orderBy: { name: 'asc' } });
-      res.json(clubs);
+    // TERMINAL product freeze: Active clubs = CODENEX ONLY
+    const activeClubs = await prisma.club.findMany({
+      where: { status: 'ACTIVE', slug: 'codenex' },
+      orderBy: { name: 'asc' }
+    });
+
+    if (activeClubs.length === 0) {
+      res.json([]);
       return;
     }
 
-    // Return only clubs the user is a member of
-    const memberships = await prisma.clubMember.findMany({
-      where: { userId: req.userId },
-      include: { club: true },
+    const codenex = activeClubs[0];
+
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+      res.json([{ ...codenex, myRole: 'ADMIN' }]);
+      return;
+    }
+
+    // Check membership
+    const membership = await prisma.clubMember.findUnique({
+      where: { clubId_userId: { clubId: codenex.id, userId: req.userId! } }
     });
 
-    const clubs = memberships.map((m) => ({
-      ...m.club,
-      myRole: m.role,
-    }));
-
-    res.json(clubs);
+    res.json([{
+      ...codenex,
+      myRole: membership?.role || (user.role === 'GAME_MASTER' ? 'ADMIN' : 'MEMBER')
+    }]);
   } catch (error) {
     console.error('[GET /api/clubs]', error);
     res.status(500).json({ error: 'Failed to fetch clubs' });
@@ -58,6 +67,13 @@ router.get('/:clubId', authenticate, async (req: AuthRequest, res: Response) => 
       return;
     }
 
+    // Only active clubs are accessible to non-superadmins
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (club.status !== 'ACTIVE' && user?.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Club is archived or inactive' });
+      return;
+    }
+
     res.json(club);
   } catch (error) {
     console.error('[GET /api/clubs/:clubId]', error);
@@ -71,7 +87,7 @@ router.post('/', authenticate, requireSuperAdmin, async (req: AuthRequest, res: 
     const { name, slug, description, focus } = req.body;
     const allowedClub = PLATFORM_CLUBS.find((club) => club.name === name && club.slug === slug);
     if (!allowedClub) {
-      res.status(400).json({ error: 'Only the four configured platform clubs are supported' });
+      res.status(400).json({ error: 'Only the configured platform club (CODENEX) is supported' });
       return;
     }
 
@@ -87,6 +103,7 @@ router.post('/', authenticate, requireSuperAdmin, async (req: AuthRequest, res: 
         slug: allowedClub.slug,
         description,
         focus: focus ?? allowedClub.focus,
+        status: 'ACTIVE',
       },
     });
     res.json(club);

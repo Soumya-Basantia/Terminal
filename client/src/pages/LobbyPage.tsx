@@ -176,28 +176,28 @@ export default function LobbyPage() {
             </div>
           </div>
 
-          <div className="p-6 text-center">
+          <div className="p-4 sm:p-6 text-center">
             {/* Game name */}
             <div className="mb-1 text-[10px] font-bold tracking-[0.3em] text-[#5e6b7c] uppercase">// ACTIVE SESSION</div>
-            <h1 className="font-black text-2xl sm:text-3xl uppercase tracking-tight text-white mb-5"
+            <h1 className="font-black text-[clamp(1.3rem,4.5vw,2.2rem)] uppercase tracking-tight text-white mb-5 break-words"
               style={{ fontFamily: "'Orbitron', monospace" }}>
               {gameName}
             </h1>
 
             {/* Room code display */}
-            <div className="inline-flex flex-col items-center gap-1 mb-6">
+            <div className="inline-flex flex-col items-center gap-1 mb-6 max-w-full">
               <span className="text-[10px] text-[#5e6b7c] tracking-[0.3em] uppercase font-bold">ROOM CODE</span>
-              <div className="flex items-center gap-3 bg-[#0a0c10] border-2 border-[#00ffcc] px-6 py-3 shadow-[3px_3px_0px_var(--term-cyan)]" style={{ borderRadius: 0 }}>
-                <span className="w-2 h-2 bg-[#00ffcc] rounded-full animate-pulse inline-block" />
-                <span className="font-black text-3xl text-[#00ffcc] tracking-[0.4em] font-mono">{code}</span>
+              <div className="flex items-center gap-2 sm:gap-3 bg-[#0a0c10] border-2 border-[#00ffcc] px-4 sm:px-6 py-2.5 sm:py-3 shadow-[3px_3px_0px_var(--term-cyan)] max-w-full" style={{ borderRadius: 0 }}>
+                <span className="w-2 h-2 bg-[#00ffcc] rounded-full animate-pulse inline-block shrink-0" />
+                <span className="font-black text-[clamp(1.5rem,6vw,2.25rem)] text-[#00ffcc] tracking-[0.2em] sm:tracking-[0.4em] font-mono truncate">{code}</span>
               </div>
               <span className="text-[9px] text-[#3d4754] font-mono">terminal.join /{code.toLowerCase()}</span>
             </div>
 
             {/* Player count metric */}
-            <div className="flex items-center justify-center gap-3 mb-6 bg-[#0a0c10] border border-[#2d3848] px-6 py-3 mx-auto w-fit" style={{ borderRadius: 0 }}>
+            <div className="flex items-center justify-center gap-3 mb-6 bg-[#0a0c10] border border-[#2d3848] px-4 sm:px-6 py-2.5 sm:py-3 mx-auto w-fit" style={{ borderRadius: 0 }}>
               <Users size={16} className="text-[#8b99aa]" />
-              <span className="font-black text-3xl text-white font-mono">{playerCount}</span>
+              <span className="font-black text-2xl sm:text-3xl text-white font-mono">{playerCount}</span>
               <div className="text-left">
                 <div className="text-[10px] text-[#3fb950] font-bold tracking-widest uppercase">OPERATORS</div>
                 <div className="text-[9px] text-[#5e6b7c] font-mono">JOINED</div>

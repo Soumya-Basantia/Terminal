@@ -46,7 +46,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   }[maxWidth];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-mono">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-mono">
       {/* Clickable Backdrop */}
       <div 
         className="fixed inset-0 -z-10" 
@@ -55,7 +55,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
 
       {/* Modal Dialog Card */}
       <div 
-        className={`w-full ${maxWidthClass} bg-[var(--term-bg-surface)] border-2 border-[var(--term-border-crisp)] shadow-[8px_8px_0_0_rgba(0,0,0,0.85)] max-h-[90vh] flex flex-col relative animate-fade-in-scale`}
+        className={`w-full ${maxWidthClass} bg-[var(--term-bg-surface)] border-2 border-[var(--term-border-crisp)] shadow-[8px_8px_0_0_rgba(0,0,0,0.85)] max-h-[92vh] sm:max-h-[90vh] flex flex-col relative animate-fade-in-scale`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cyber Corner Brackets */}
@@ -65,8 +65,8 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
         <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-[var(--term-cyan)] pointer-events-none" />
 
         {/* Modal Header */}
-        <div className="bg-[var(--term-bg-elevated)] border-b-2 border-[var(--term-border-subtle)] p-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="bg-[var(--term-bg-elevated)] border-b-2 border-[var(--term-border-subtle)] p-3 sm:p-3.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <span className="text-[10px] font-bold text-[var(--term-cyan)] uppercase tracking-wider select-none shrink-0">
               {headerTag}
             </span>
@@ -77,7 +77,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-[var(--term-text-muted)] hover:text-white hover:bg-[var(--term-bg-highlight)] transition-colors cursor-pointer shrink-0 border border-transparent hover:border-[var(--term-border-muted)]"
+            className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center text-[var(--term-text-muted)] hover:text-white hover:bg-[var(--term-bg-highlight)] transition-colors cursor-pointer shrink-0 border border-transparent hover:border-[var(--term-border-muted)]"
             title="Close (Esc)"
           >
             <X size={16} />
@@ -85,7 +85,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="p-5 overflow-y-auto flex-1 scroll-area">
+        <div className="p-3.5 sm:p-5 overflow-y-auto flex-1 scroll-area">
           {children}
         </div>
       </div>

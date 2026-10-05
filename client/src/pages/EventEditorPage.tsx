@@ -105,24 +105,24 @@ export default function EventEditorPage() {
 
   return (
     <DesignerLayout clubId={clubId} clubName={currentClub?.name}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24 }}>
+      <div className="max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
 
         {/* Left Column */}
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5 lg:col-span-8 min-w-0">
           {/* Header */}
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div>
               <div className="text-[10px] font-bold tracking-[0.3em] text-[var(--term-cyan)] mb-1">// EVENT_BUILDER</div>
-              <h1 className="font-mono font-black text-3xl uppercase tracking-tight text-white">
+              <h1 className="font-mono font-black text-[clamp(1.5rem,5vw,2rem)] uppercase tracking-tight text-white">
                 EVENT <span className="text-[var(--term-cyan)]">EDITOR</span>
               </h1>
               <p className="font-mono text-[10px] text-[var(--term-text-muted)] mt-1">ID: {event.id}</p>
             </div>
-            <div className="flex gap-3">
-              <TerminalButton onClick={handleSave} variant="secondary" disabled={saveMutation.isPending}>
+            <div className="flex flex-wrap gap-2.5">
+              <TerminalButton onClick={handleSave} variant="secondary" disabled={saveMutation.isPending} className="min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial">
                 <Save size={13} /> {saveMutation.isPending ? 'SAVING...' : 'SAVE'}
               </TerminalButton>
-              <TerminalButton onClick={handleHost} variant="primary" disabled={status !== 'PUBLISHED'}>
+              <TerminalButton onClick={handleHost} variant="primary" disabled={status !== 'PUBLISHED'} className="min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial">
                 <Play size={13} /> INITIALIZE SESSION
               </TerminalButton>
             </div>
@@ -135,7 +135,7 @@ export default function EventEditorPage() {
             <div className="px-5 py-3 border-b border-[var(--term-border-faint)]">
               <span className="text-[9px] font-bold tracking-[0.3em] text-[var(--term-cyan)]">// 01. PARAMETERS</span>
             </div>
-            <div className="p-5 flex flex-col gap-4">
+            <div className="p-4 sm:p-5 flex flex-col gap-4">
               <TerminalInput
                 label="DESIGNATION"
                 value={name}
@@ -146,7 +146,7 @@ export default function EventEditorPage() {
                 value={description}
                 onChange={e => setDescription(e.target.value)}
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="font-mono text-[9px] font-bold tracking-widest text-[var(--term-text-muted)] uppercase block mb-1.5">EXECUTION MODE</label>
                   <select className={selectStyle} value={mode} onChange={e => setMode(e.target.value)}>
@@ -174,7 +174,7 @@ export default function EventEditorPage() {
             <div className="px-5 py-3 border-b border-[var(--term-border-faint)]">
               <span className="text-[9px] font-bold tracking-[0.3em] text-[var(--term-cyan)]">// 02. EXECUTION_FLOW</span>
             </div>
-            <div className="p-5">
+            <div className="p-4 sm:p-5">
               {event.games.length === 0 ? (
                 <div className="text-center p-8 border border-dashed border-[var(--term-border-faint)]">
                   <p className="font-mono text-xs text-[var(--term-text-muted)]">// NO GAMES MOUNTED IN SEQUENCE</p>
@@ -182,46 +182,49 @@ export default function EventEditorPage() {
               ) : (
                 <div className="flex flex-col gap-2">
                   {event.games.map((eg: any, i: number) => (
-                    <div key={eg.id} className="flex items-center gap-3 p-3 bg-[var(--term-bg-elevated)] border border-[var(--term-border-faint)]">
-                      <div className="flex flex-col gap-1">
-                        <button onClick={() => moveUp(i)} disabled={i === 0} className="text-[var(--term-text-muted)] hover:text-[var(--term-cyan)] disabled:opacity-20 transition-colors cursor-pointer">
-                          <ChevronUp size={14} />
+                    <div key={eg.id} className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 p-3 bg-[var(--term-bg-elevated)] border border-[var(--term-border-faint)]">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => moveUp(i)} disabled={i === 0} aria-label="Move Up" className="p-1 min-w-[36px] min-h-[36px] flex items-center justify-center text-[var(--term-text-muted)] hover:text-[var(--term-cyan)] disabled:opacity-20 transition-colors cursor-pointer">
+                          <ChevronUp size={16} />
                         </button>
-                        <button onClick={() => moveDown(i)} disabled={i === event.games.length - 1} className="text-[var(--term-text-muted)] hover:text-[var(--term-cyan)] disabled:opacity-20 transition-colors cursor-pointer">
-                          <ChevronDown size={14} />
+                        <button onClick={() => moveDown(i)} disabled={i === event.games.length - 1} aria-label="Move Down" className="p-1 min-w-[36px] min-h-[36px] flex items-center justify-center text-[var(--term-text-muted)] hover:text-[var(--term-cyan)] disabled:opacity-20 transition-colors cursor-pointer">
+                          <ChevronDown size={16} />
                         </button>
                       </div>
-                      <div className="font-mono font-black text-lg text-[var(--term-cyan)] opacity-40 w-8">{(i + 1).toString().padStart(2, '0')}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-mono font-bold text-sm uppercase text-white truncate">{eg.game.name}</div>
+                      <div className="font-mono font-black text-lg text-[var(--term-cyan)] opacity-40 w-7 sm:w-8 shrink-0">{(i + 1).toString().padStart(2, '0')}</div>
+                      <div className="flex-1 min-w-[140px]">
+                        <div className="font-mono font-bold text-xs sm:text-sm uppercase text-white truncate">{eg.game.name}</div>
                         <div className="font-mono text-[9px] text-[var(--term-text-muted)] uppercase">{eg.game.template}</div>
                       </div>
-                      <select
-                        className="font-mono text-[9px] p-1.5 bg-[var(--term-bg-void)] text-[var(--term-text-primary)] border border-[var(--term-border-faint)] outline-none"
-                        value={eg.purpose || 'NORMAL'}
-                        onChange={(e) => updateEventGameMutation.mutate({ eventGameId: eg.id, purpose: e.target.value, enabled: eg.enabled ?? true })}
-                      >
-                        <option value="NORMAL">NORMAL</option>
-                        <option value="FINAL">FINAL</option>
-                        <option value="TIE_BREAKER">TIE BREAKER</option>
-                        <option value="BONUS">BONUS</option>
-                      </select>
-                      <button
-                        onClick={() => updateEventGameMutation.mutate({ eventGameId: eg.id, purpose: eg.purpose || 'NORMAL', enabled: !(eg.enabled ?? true) })}
-                        className={`font-mono text-[9px] px-2 py-1 border transition-colors ${
-                          eg.enabled !== false
-                            ? 'text-[var(--term-cyan)] border-[var(--term-cyan)]'
-                            : 'text-[var(--term-text-muted)] border-[var(--term-border-faint)]'
-                        }`}
-                      >
-                        {eg.enabled !== false ? 'ON' : 'OFF'}
-                      </button>
-                      <button
-                        onClick={() => removeGameMutation.mutate(eg.id)}
-                        className="p-1.5 text-[var(--term-red)] hover:bg-[var(--term-red)] hover:text-black transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0 justify-end">
+                        <select
+                          className="font-mono text-[9px] p-1.5 bg-[var(--term-bg-void)] text-[var(--term-text-primary)] border border-[var(--term-border-faint)] outline-none min-h-[36px] sm:min-h-0"
+                          value={eg.purpose || 'NORMAL'}
+                          onChange={(e) => updateEventGameMutation.mutate({ eventGameId: eg.id, purpose: e.target.value, enabled: eg.enabled ?? true })}
+                        >
+                          <option value="NORMAL">NORMAL</option>
+                          <option value="FINAL">FINAL</option>
+                          <option value="TIE_BREAKER">TIE BREAKER</option>
+                          <option value="BONUS">BONUS</option>
+                        </select>
+                        <button
+                          onClick={() => updateEventGameMutation.mutate({ eventGameId: eg.id, purpose: eg.purpose || 'NORMAL', enabled: !(eg.enabled ?? true) })}
+                          className={`font-mono text-[9px] px-2.5 py-1 min-h-[36px] sm:min-h-0 border transition-colors ${
+                            eg.enabled !== false
+                              ? 'text-[var(--term-cyan)] border-[var(--term-cyan)]'
+                              : 'text-[var(--term-text-muted)] border-[var(--term-border-faint)]'
+                          }`}
+                        >
+                          {eg.enabled !== false ? 'ON' : 'OFF'}
+                        </button>
+                        <button
+                          onClick={() => removeGameMutation.mutate(eg.id)}
+                          aria-label="Remove game"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-[var(--term-red)] hover:bg-[var(--term-red)] hover:text-black transition-colors"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -231,8 +234,8 @@ export default function EventEditorPage() {
         </div>
 
         {/* Right Column: Module Library */}
-        <div>
-          <div className="border border-[var(--term-border-muted)] bg-[var(--term-bg-surface)] relative sticky top-24">
+        <div className="lg:col-span-4 min-w-0">
+          <div className="border border-[var(--term-border-muted)] bg-[var(--term-bg-surface)] relative lg:sticky lg:top-24">
             <div className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-[var(--term-cyan)]" />
             <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-[var(--term-cyan)]" />
             <div className="px-5 py-3 border-b border-[var(--term-border-faint)]">
@@ -241,13 +244,13 @@ export default function EventEditorPage() {
             <div className="p-4 flex flex-col gap-2">
               {games.map((game: Game) => (
                 <div key={game.id} className="flex items-center justify-between p-3 border border-[var(--term-border-faint)] bg-[var(--term-bg-elevated)] hover:border-[var(--term-border-muted)] transition-all">
-                  <div>
-                    <div className="font-mono font-bold text-xs uppercase text-white">{game.name}</div>
-                    <div className="font-mono text-[9px] text-[var(--term-text-muted)] uppercase">
+                  <div className="min-w-0 pr-2">
+                    <div className="font-mono font-bold text-xs uppercase text-white truncate">{game.name}</div>
+                    <div className="font-mono text-[9px] text-[var(--term-text-muted)] uppercase truncate">
                       {game.template} • {game._count?.challenges ?? game.challenges?.length ?? 0} CHALLENGES
                     </div>
                   </div>
-                  <TerminalButton onClick={() => addGameMutation.mutate(game.id)} variant="primary" className="text-[9px] px-2 py-1">
+                  <TerminalButton onClick={() => addGameMutation.mutate(game.id)} variant="primary" className="text-[9px] px-2.5 py-1 min-h-[36px] sm:min-h-0 shrink-0">
                     <Plus size={11} /> ADD
                   </TerminalButton>
                 </div>

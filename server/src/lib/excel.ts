@@ -106,9 +106,12 @@ export async function generateMultiSheetExcelBuffer(
         } else if (col.type === 'number') {
           rowValues[col.key] = typeof val === 'number' ? val : Number(val) || 0;
         } else if (typeof val === 'object') {
-          rowValues[col.key] = JSON.stringify(val);
+          const str = JSON.stringify(val);
+          rowValues[col.key] = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
         } else {
-          rowValues[col.key] = String(val);
+          const str = String(val);
+          // Protect against CSV / Excel formula injection for user-controlled strings
+          rowValues[col.key] = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
         }
       }
 

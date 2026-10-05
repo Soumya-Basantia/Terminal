@@ -242,11 +242,18 @@ router.post('/:id/purge-chat', authenticate, async (req: AuthRequest, res: Respo
         { id: idOrCode },
         { roomCode: idOrCode.toUpperCase() }
       ]
-    }
+    },
+    include: { event: true }
   });
 
   if (!session) {
     res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+
+  const isAuthorized = await checkEventAuthorization(session.eventId, req.userId!);
+  if (!isAuthorized) {
+    res.status(403).json({ error: 'Forbidden' });
     return;
   }
 
@@ -341,8 +348,6 @@ router.post('/active/submit', authenticate, async (req: AuthRequest, res: Respon
     challengeConfig: config,
     submission: typeof answer === 'object' ? JSON.stringify(answer) : parsedSubmission,
   };
-
-  console.log("Validation Context:", context, "Original Answer:", answer);
 
   const validationResult = Validator.validate(validationType, context);
   let isCorrect = validationResult.isCorrect;

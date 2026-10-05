@@ -344,7 +344,7 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
             {/* Terminal Monospaced ASCII Header & Native Linux MOTD */}
             <div className="space-y-3 font-mono text-xs select-text">
               {/* ASCII Banner */}
-              <pre className="text-cyan-400 font-bold text-[10px] sm:text-xs leading-none select-none tracking-tight overflow-x-auto">
+              <pre className="text-cyan-400 font-bold text-[7.5px] xs:text-[9px] sm:text-xs leading-none select-none tracking-tighter sm:tracking-tight overflow-x-auto no-scrollbar">
 {`  ████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗ █████╗ ██╗     
   ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║██╔══██╗██║     
      ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║███████║██║     
@@ -405,12 +405,12 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
           </div>
         </main>
 
-        {/* Dynamic Expandable Side Panel (Right) — takes 28-36% viewport width, fast transition */}
+        {/* Dynamic Expandable Side Panel — on desktop takes right column, on mobile becomes bottom expandable module */}
         <aside 
           aria-label="Command Telemetry Panel"
           className={`transition-all duration-200 ease-out overflow-hidden flex flex-col shrink-0 z-20 ${
             activePanel 
-              ? 'w-[32%] min-w-[320px] max-w-[460px] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:w-full max-md:z-30 opacity-100 pointer-events-auto border-l border-[#1c2638] bg-[#07090e]' 
+              ? 'w-[32%] min-w-[320px] max-w-[460px] max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[65vh] max-md:w-full max-md:z-20 max-md:border-t-2 max-md:border-cyan-500/80 max-md:border-l-0 opacity-100 pointer-events-auto border-l border-[#1c2638] bg-[#07090e] shadow-2xl' 
               : 'w-0 min-w-0 max-w-0 opacity-0 pointer-events-none border-l-0'
           }`}
         >
@@ -419,16 +419,43 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
       </div>
 
       {/* PERMANENT TERMINAL ENTRY / COMMAND BAR — ALWAYS DOCKED AT THE BOTTOM */}
-      <div className="p-2.5 sm:p-3 bg-[#080b12] border-t border-[#1c2638] shrink-0 z-30 w-full">
+      <div className="p-2.5 sm:p-3 bg-[#080b12] border-t border-[#1c2638] shrink-0 z-30 w-full relative">
         {activePanel && (
           <div className="flex items-center justify-between text-[11px] text-zinc-400 mb-1.5 select-none">
             <span className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
               <span>ACTIVE MODULE: <strong className="text-cyan-300 font-mono">/bin/{activePanel.name}</strong></span>
             </span>
-            <span className="text-[10px]">Press <kbd className="px-1.5 py-0.5 bg-[#121622] border border-[#1c2638] text-zinc-300 text-[9px] font-mono">Esc</kbd> to return to full terminal</span>
+            <button 
+              type="button" 
+              onClick={handleClosePanel}
+              className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono underline cursor-pointer"
+            >
+              [Close / Esc]
+            </button>
           </div>
         )}
+
+        {/* Mobile Quick Touch Command Chips */}
+        <div className="flex sm:hidden items-center gap-1.5 overflow-x-auto pb-1.5 mb-1.5 no-scrollbar select-none text-[10px] font-mono">
+          <span className="text-zinc-500 text-[9px] uppercase tracking-wider shrink-0 mr-0.5">RUN:</span>
+          {['help', 'team', 'whoami', 'battle', 'scorecard', 'history', 'messages', 'clear'].map(cmd => (
+            <button
+              key={cmd}
+              type="button"
+              onClick={() => {
+                if (cmd === 'clear') {
+                  handleClear();
+                } else {
+                  handleCommand(cmd);
+                }
+              }}
+              className="px-2 py-1 bg-[#121622] hover:bg-[#1a2030] active:bg-cyan-950 text-cyan-300 border border-[#232d42] active:border-cyan-400 shrink-0 touch-manipulation cursor-pointer"
+            >
+              {cmd}
+            </button>
+          ))}
+        </div>
 
         <TerminalInput 
           username={promptUser} 
@@ -440,10 +467,10 @@ export const TerminalShell: React.FC<TerminalShellProps> = ({
 
         <div className="mt-1.5 text-[9px] sm:text-[10px] text-zinc-500 font-mono tracking-wider flex flex-wrap gap-4 select-none">
           <span>ENTER <span className="text-zinc-600">execute</span></span>
-          <span>TAB <span className="text-zinc-600">autocomplete</span></span>
-          <span>↑↓ <span className="text-zinc-600">history</span></span>
-          <span>ESC <span className="text-zinc-600">close side panel</span></span>
-          <span>CTRL+L <span className="text-zinc-600">clear</span></span>
+          <span className="hidden xs:inline">TAB <span className="text-zinc-600">autocomplete</span></span>
+          <span className="hidden sm:inline">↑↓ <span className="text-zinc-600">history</span></span>
+          <span>ESC <span className="text-zinc-600">close panel</span></span>
+          <span className="hidden sm:inline">CTRL+L <span className="text-zinc-600">clear</span></span>
         </div>
       </div>
     </div>

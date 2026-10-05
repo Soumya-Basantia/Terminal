@@ -142,8 +142,8 @@ export default function SessionHostPage() {
 
       {/* ── STICKY TOP COMMAND BAR ─── */}
       <header
-        className="relative z-50 w-full bg-[#0a0c10] border-b-2 border-[#1a222e] px-4 py-0 flex items-center gap-3"
-        style={{ borderRadius: 0, height: 52 }}>
+        className="relative z-50 w-full bg-[#0a0c10] border-b-2 border-[#1a222e] px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2.5 min-h-[52px]"
+        style={{ borderRadius: 0 }}>
 
         {/* Logo */}
         <div className="flex items-center gap-2 shrink-0">
@@ -153,7 +153,7 @@ export default function SessionHostPage() {
           <span className="font-black text-xs tracking-widest text-white hidden sm:block" style={{ fontFamily: "'Orbitron', monospace" }}>TERMINAL</span>
         </div>
 
-        <div className="w-px h-6 bg-[#1a222e] shrink-0" />
+        <div className="w-px h-6 bg-[#1a222e] shrink-0 hidden sm:block" />
 
         {/* Session status badge */}
         <div className="flex items-center gap-1.5 text-[10px] font-black tracking-widest" style={{ color: stateColor }}>

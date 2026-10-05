@@ -595,7 +595,7 @@ export default function PlayPage() {
           }}
         />
       ) : (
-      <div className="flex-1 max-w-2xl mx-auto w-full p-6 flex flex-col relative z-10 mt-4 card-glow">
+      <div className="flex-1 max-w-2xl mx-auto w-full p-3 sm:p-6 flex flex-col relative z-10 mt-2 sm:mt-4 card-glow">
         {/* Difficulty */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <span style={{
@@ -610,8 +610,8 @@ export default function PlayPage() {
         </div>
 
         {/* Question */}
-        <div style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.4 }}>
+        <div style={{ marginBottom: 20 }}>
+          <h2 className="text-[clamp(1.05rem,3.2vw,1.4rem)] font-bold leading-snug break-words">
             {currentChallenge.prompt}
           </h2>
           {isMulti && !submitted && (
@@ -693,12 +693,12 @@ export default function PlayPage() {
       )}
         </main>
 
-        {/* Dynamic Expandable Side Panel (Right) — takes 28-36% viewport width, fast transition */}
+        {/* Dynamic Expandable Side Panel (Right) — takes 28-36% viewport width on desktop, bottom expandable module on mobile */}
         <aside 
           aria-label="Command Telemetry Panel"
           className={`transition-all duration-200 ease-out overflow-hidden flex flex-col shrink-0 z-20 ${
             isTeamOpen 
-              ? 'w-[32%] min-w-[320px] max-w-[460px] max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:w-full max-md:z-30 opacity-100 pointer-events-auto border-l-2 border-cyan-500/80 shadow-[-6px_0_24px_rgba(0,0,0,0.7)]' 
+              ? 'w-[32%] min-w-[320px] max-w-[460px] max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[65vh] max-md:w-full max-md:z-20 max-md:border-t-2 max-md:border-cyan-500/80 max-md:border-l-0 opacity-100 pointer-events-auto border-l-2 border-cyan-500/80 shadow-[-6px_0_24px_rgba(0,0,0,0.7)]' 
               : 'w-0 min-w-0 max-w-0 opacity-0 pointer-events-none border-l-0'
           }`}
         >
@@ -710,11 +710,13 @@ export default function PlayPage() {
 
       {/* Timer — bottom fixed above terminal bar */}
       {hasChallengeTimer && (
-        <div style={{
-          position: 'fixed', bottom: 74, right: isTeamOpen ? 'calc(32% + 24px)' : 24,
-          background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
-          borderRadius: 999, padding: '4px 4px', zIndex: 30,
-        }}>
+        <div 
+          className="fixed bottom-[68px] sm:bottom-[74px] right-3 sm:right-6 scale-75 sm:scale-100 origin-bottom-right z-30"
+          style={{
+            background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
+            borderRadius: 999, padding: '4px 4px',
+          }}
+        >
           <TimerRing endsAt={currentChallenge.challengeEndsAt} timerSecs={currentChallenge.timerSecs} />
         </div>
       )}

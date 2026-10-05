@@ -536,7 +536,7 @@ export default function ScannerChallenge({ challenge, sessionCode, onSubmitted }
                 <PixelRadarIcon className="w-6 h-6 text-[var(--accent-primary)] animate-pulse" />
                 <div>
                   <div className="text-[10px] text-[var(--accent-primary)] font-bold tracking-widest uppercase">
-                    AIERA TELEMETRY FORENSICS // PROTOCOL BRIEFING
+                    CODENEX TELEMETRY FORENSICS // PROTOCOL BRIEFING
                   </div>
                   <h3 className="text-xl font-black text-white tracking-wider uppercase">
                     OPERATION PHANTOM CADENCE
@@ -680,7 +680,7 @@ export default function ScannerChallenge({ challenge, sessionCode, onSubmitted }
             <div>
               <div className="flex items-center gap-2">
                 <span className="rs-pixel-badge bg-[rgba(0,255,204,0.1)] text-[var(--accent-primary)] border-[var(--accent-primary)]">
-                  AIERA FORENSICS // TELEMETRY SUITE
+                  CODENEX FORENSICS // TELEMETRY SUITE
                 </span>
                 <span className="rs-pixel-badge bg-[var(--bg-base)] text-gray-400 border-[var(--border-subtle)]">
                   ROOM: {sessionCode}
@@ -1525,7 +1525,7 @@ export default function ScannerChallenge({ challenge, sessionCode, onSubmitted }
             <div className="flex items-center justify-between border-b-2 border-[var(--border-subtle)] pb-3">
               <div className="flex items-center gap-2 text-base font-bold text-[var(--accent-primary)]">
                 <Activity className="w-5 h-5" />
-                <span>AIERA CLUSTER TELEMETRY BASELINE</span>
+                <span>CODENEX CLUSTER TELEMETRY BASELINE</span>
               </div>
               <button 
                 type="button"

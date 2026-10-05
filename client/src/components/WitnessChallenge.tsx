@@ -359,7 +359,7 @@ export default function WitnessChallenge({ challenge, sessionCode, onSubmitted }
           </div>
           <div>
             <div className="text-xs text-[var(--accent-primary)] font-bold tracking-widest uppercase">
-              LANGNET FORENSIC LOG // THE WITNESS
+              CODENEX FORENSIC LOG // THE WITNESS
             </div>
             <h1 className="text-2xl font-black tracking-wide text-white uppercase">
               {config.caseTitle || challenge.prompt || 'OPERATION BLACKOUT'}

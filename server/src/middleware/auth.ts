@@ -1,8 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+import path from 'path';
 import { prisma } from '../lib/prisma';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'terminal-secret-change-in-prod';
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+const JWT_SECRET: string = process.env.JWT_SECRET || (() => {
+  throw new Error('[SECURITY] JWT_SECRET environment variable is not set. Refusing to start.');
+})();
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -22,7 +30,7 @@ export async function authenticate(
 
   const token = authHeader.slice(7);
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+    const payload = jwt.verify(token, JWT_SECRET) as unknown as { userId: string; email: string };
     req.userId = payload.userId;
     req.userEmail = payload.email;
     next();
@@ -40,7 +48,7 @@ export async function authenticateOptional(
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     try {
-      const payload = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+      const payload = jwt.verify(token, JWT_SECRET) as unknown as { userId: string; email: string };
       req.userId = payload.userId;
       req.userEmail = payload.email;
     } catch {
@@ -51,7 +59,7 @@ export async function authenticateOptional(
 }
 
 export function generateToken(userId: string, email: string): string {
-  return jwt.sign({ userId, email }, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ userId, email }, JWT_SECRET!, { expiresIn: '24h' });
 }
 
 export async function requireClubAdmin(

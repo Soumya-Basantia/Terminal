@@ -817,15 +817,12 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
 
   try {
     const andConditions: any[] = [];
-    const sqlWhereParts: string[] = [];
 
     // Role restrictions for students / gamemasters
     if (target === 'students') {
       andConditions.push({ role: 'PLAYER' });
-      sqlWhereParts.push(`role = 'PLAYER'`);
     } else if (target === 'gamemasters') {
       andConditions.push({ role: 'GAME_MASTER' });
-      sqlWhereParts.push(`role = 'GAME_MASTER'`);
     }
 
     // Global search keyword
@@ -841,7 +838,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
             { section: { contains: term, mode: 'insensitive' } },
           ],
         });
-        sqlWhereParts.push(`(name ILIKE '%${term}%' OR usn ILIKE '%${term}%' OR email ILIKE '%${term}%')`);
       } else if (target === 'gamemasters') {
         andConditions.push({
           OR: [
@@ -850,7 +846,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
             { phoneNumber: { contains: term, mode: 'insensitive' } },
           ],
         });
-        sqlWhereParts.push(`(name ILIKE '%${term}%' OR email ILIKE '%${term}%' OR phone_number ILIKE '%${term}%')`);
       } else if (target === 'users') {
         andConditions.push({
           OR: [
@@ -860,7 +855,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
             { usn: { contains: term, mode: 'insensitive' } },
           ],
         });
-        sqlWhereParts.push(`(username ILIKE '%${term}%' OR name ILIKE '%${term}%' OR email ILIKE '%${term}%')`);
       } else if (target === 'games') {
         andConditions.push({
           OR: [
@@ -868,7 +862,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
             { description: { contains: term, mode: 'insensitive' } },
           ],
         });
-        sqlWhereParts.push(`(name ILIKE '%${term}%' OR description ILIKE '%${term}%')`);
       } else if (target === 'events') {
         andConditions.push({
           OR: [
@@ -876,7 +869,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
             { description: { contains: term, mode: 'insensitive' } },
           ],
         });
-        sqlWhereParts.push(`(name ILIKE '%${term}%' OR description ILIKE '%${term}%')`);
       } else if (target === 'reports') {
         andConditions.push({
           OR: [
@@ -884,7 +876,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
             { details: { contains: term, mode: 'insensitive' } },
           ],
         });
-        sqlWhereParts.push(`(reason ILIKE '%${term}%' OR details ILIKE '%${term}%')`);
       } else if (target === 'audit_logs') {
         andConditions.push({
           OR: [
@@ -893,11 +884,10 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
             { targetType: { contains: term, mode: 'insensitive' } },
           ],
         });
-        sqlWhereParts.push(`(admin_username ILIKE '%${term}%' OR action ILIKE '%${term}%')`);
       }
     }
 
-    // Structured parameterized filters
+    // Structured parameterized filters (Prisma ORM only — no raw SQL)
     for (const f of filters) {
       const op = f.operator.toUpperCase();
       const val = f.value;
@@ -906,30 +896,24 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
         case 'EQUALS':
         case '=':
           andConditions.push({ [f.field]: val });
-          sqlWhereParts.push(`${f.field} = '${val}'`);
           break;
         case 'NOT_EQUALS':
         case '!=':
           andConditions.push({ [f.field]: { not: val } });
-          sqlWhereParts.push(`${f.field} != '${val}'`);
           break;
         case 'CONTAINS':
         case 'LIKE':
           andConditions.push({ [f.field]: { contains: String(val), mode: 'insensitive' } });
-          sqlWhereParts.push(`${f.field} ILIKE '%${val}%'`);
           break;
         case 'STARTS_WITH':
           andConditions.push({ [f.field]: { startsWith: String(val), mode: 'insensitive' } });
-          sqlWhereParts.push(`${f.field} LIKE '${val}%'`);
           break;
         case 'ENDS_WITH':
           andConditions.push({ [f.field]: { endsWith: String(val), mode: 'insensitive' } });
-          sqlWhereParts.push(`${f.field} LIKE '%${val}'`);
           break;
         case 'IN': {
           const inArr = Array.isArray(val) ? val : [val];
           andConditions.push({ [f.field]: { in: inArr } });
-          sqlWhereParts.push(`${f.field} IN (${inArr.map(x => `'${x}'`).join(', ')})`);
           break;
         }
       }
@@ -942,10 +926,8 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
 
     let total = 0;
     let records: any[] = [];
-    let tableName = 'users';
 
     if (target === 'students' || target === 'gamemasters' || target === 'users') {
-      tableName = 'users';
       const selectFields = target === 'students'
         ? { id: true, name: true, usn: true, email: true, branch: true, section: true, accountStatus: true, isVerified: true, lastLogin: true, createdAt: true, updatedAt: true }
         : target === 'gamemasters'
@@ -963,7 +945,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
         }),
       ]);
     } else if (target === 'clubs') {
-      tableName = 'clubs';
       [total, records] = await Promise.all([
         prisma.club.count({ where: whereClause }),
         prisma.club.findMany({
@@ -974,7 +955,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
         }),
       ]);
     } else if (target === 'games') {
-      tableName = 'games';
       [total, records] = await Promise.all([
         prisma.game.count({ where: whereClause }),
         prisma.game.findMany({
@@ -985,7 +965,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
         }),
       ]);
     } else if (target === 'events') {
-      tableName = 'events';
       [total, records] = await Promise.all([
         prisma.event.count({ where: whereClause }),
         prisma.event.findMany({
@@ -996,7 +975,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
         }),
       ]);
     } else if (target === 'reports') {
-      tableName = 'reports';
       [total, records] = await Promise.all([
         prisma.report.count({ where: whereClause }),
         prisma.report.findMany({
@@ -1011,7 +989,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
         }),
       ]);
     } else if (target === 'audit_logs') {
-      tableName = 'audit_logs';
       [total, records] = await Promise.all([
         prisma.auditLog.count({ where: whereClause }),
         prisma.auditLog.findMany({
@@ -1023,7 +1000,7 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
       ]);
     }
 
-    const sqlPreview = `SELECT * FROM ${tableName}${sqlWhereParts.length > 0 ? `\nWHERE ${sqlWhereParts.join('\n  AND ')}` : ''}\nORDER BY ${sortField} ${sortDir.toUpperCase()}\nLIMIT ${pageSize} OFFSET ${offset};`;
+    const sqlPreview = `SELECT * FROM ${target} ORDER BY ${sortField} ${sortDir.toUpperCase()} LIMIT ${pageSize} OFFSET ${offset};`;
 
     res.json({
       target,
@@ -1031,8 +1008,8 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
       pageSize,
       total,
       totalPages: Math.ceil(total / pageSize) || 1,
-      sqlPreview,
       records,
+      sqlPreview,
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Query execution failed', details: err.message });

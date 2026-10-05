@@ -172,6 +172,26 @@ export interface SessionStatePayload {
   };
 }
 
+export function deriveStageModeFromStatus(status: string | null | undefined, currentStageMode?: string | null): string {
+  if (currentStageMode && currentStageMode !== 'LOBBY') {
+    return currentStageMode;
+  }
+
+  const stageModeByStatus: Record<string, string> = {
+    LOBBY: 'LOBBY',
+    STARTING: 'ANNOUNCEMENT',
+    ROUND_ACTIVE: 'QUESTION',
+    ROUND_LOCKED: 'ANSWER_REVEAL',
+    RESULTS: 'LEADERBOARD',
+    ENDED: 'FINAL_RESULTS',
+    QUESTION_ACTIVE: 'QUESTION',
+    QUESTION_LOCKED: 'ANSWER_REVEAL',
+    QUESTION_RESULTS: 'LEADERBOARD',
+  };
+
+  return stageModeByStatus[status || ''] || currentStageMode || 'LOBBY';
+}
+
 export async function getSessionState(roomCode: string): Promise<SessionStatePayload | null> {
   const session = await prisma.session.findUnique({
     where: { roomCode },
@@ -569,13 +589,15 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
     };
   }
 
+  const effectiveStageMode = deriveStageModeFromStatus(session.status, session.stageMode);
+
   return {
     session: {
       id: session.id,
       eventId: session.eventId,
       roomCode: session.roomCode,
       status: session.status,
-      stageMode: session.stageMode,
+      stageMode: effectiveStageMode,
       currentGameId: session.currentGameId,
       currentChallengeId: session.currentChallengeId,
       challengeStartTime: session.challengeStartTime,

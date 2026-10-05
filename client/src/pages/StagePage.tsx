@@ -73,57 +73,68 @@ export default function StagePage() {
   }
 
   const { session, event, currentGame, playerCount, teamCount } = sessionData;
-  const stageMode = session.stageMode || 'LOBBY';
+  const stageModeByStatus: Record<string, string> = {
+    LOBBY: 'LOBBY',
+    STARTING: 'ANNOUNCEMENT',
+    ROUND_ACTIVE: 'QUESTION',
+    ROUND_LOCKED: 'ANSWER_REVEAL',
+    RESULTS: 'LEADERBOARD',
+    ENDED: 'FINAL_RESULTS',
+    QUESTION_ACTIVE: 'QUESTION',
+    QUESTION_LOCKED: 'ANSWER_REVEAL',
+    QUESTION_RESULTS: 'LEADERBOARD',
+  };
+  const stageMode = session.stageMode && session.stageMode !== 'LOBBY' ? session.stageMode : stageModeByStatus[session.status] || 'LOBBY';
 
   const renderLobby = () => (
-    <div className="text-center flex flex-col items-center">
-      <h3 className="text-4xl tracking-[0.3em] text-[var(--accent-primary)] font-mono font-bold mb-4">TERMINAL</h3>
-      <h1 className="text-8xl font-black mb-16 uppercase drop-shadow-[0_0_15px_rgba(0,255,204,0.4)]">
+    <div className="text-center flex flex-col items-center w-full max-w-5xl mx-auto px-2">
+      <h3 className="text-xl sm:text-3xl md:text-4xl tracking-[0.3em] text-[var(--accent-primary)] font-mono font-bold mb-2 sm:mb-4">TERMINAL</h3>
+      <h1 className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-black mb-6 sm:mb-12 uppercase drop-shadow-[0_0_15px_rgba(0,255,204,0.4)] break-words max-w-full">
         {event.name}
       </h1>
       
-      <StagePanel className="w-full max-w-4xl mx-auto flex items-center gap-16 justify-between text-left">
-        <div className="flex flex-col gap-6">
-          <div className="text-3xl text-[var(--text-secondary)] font-mono">ROOM CODE</div>
-          <div className="text-[7rem] leading-none font-black text-[var(--accent-primary)] tracking-wider">
+      <StagePanel className="w-full max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-6 sm:gap-12 md:gap-16 justify-between text-left">
+        <div className="flex flex-col gap-3 sm:gap-6 min-w-0 w-full md:w-auto">
+          <div className="text-xs sm:text-lg md:text-2xl text-[var(--text-secondary)] font-mono uppercase tracking-widest">ROOM CODE</div>
+          <div className="text-[clamp(2.5rem,8vw,7rem)] leading-none font-black text-[var(--accent-primary)] tracking-wider">
             {session.roomCode}
           </div>
-          <div className="text-4xl mt-4 font-mono text-[var(--text-primary)]">
-            Type <strong className="text-[var(--accent-primary)] bg-[rgba(0,255,204,0.1)] px-4 py-2 rounded border border-[var(--accent-primary)]">battle {session.roomCode}</strong>
+          <div className="text-base sm:text-2xl md:text-4xl mt-1 sm:mt-4 font-mono text-[var(--text-primary)] break-words">
+            Type <strong className="text-[var(--accent-primary)] bg-[rgba(0,255,204,0.1)] px-2 sm:px-4 py-1 sm:py-2 border border-[var(--accent-primary)] inline-block">battle {session.roomCode}</strong>
           </div>
-          <div className="text-2xl text-[var(--text-secondary)] mt-2 font-mono">
+          <div className="text-xs sm:text-base md:text-xl text-[var(--text-secondary)] mt-1 font-mono break-all">
             at {window.location.host}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shrink-0">
-          <QRCodeSVG value={`${window.location.origin}/terminal`} size={240} />
+        <div className="bg-white p-3 sm:p-6 shrink-0 border border-[var(--accent-primary)] shadow-[0_0_20px_rgba(0,255,204,0.2)]">
+          <QRCodeSVG value={`${window.location.origin}/terminal`} size={160} className="w-32 h-32 sm:w-48 sm:h-48 md:w-56 md:h-56" />
         </div>
       </StagePanel>
 
-      <div className="flex gap-20 mt-20">
-        <div className="text-4xl font-mono text-[var(--text-secondary)]">
-          <strong className="text-[var(--accent-secondary)] text-6xl mr-4">{playerCount}</strong> PLAYERS
+      <div className="flex flex-wrap justify-center gap-6 sm:gap-12 md:gap-20 mt-8 sm:mt-16">
+        <div className="text-lg sm:text-2xl md:text-4xl font-mono text-[var(--text-secondary)] flex items-center">
+          <strong className="text-[var(--accent-secondary)] text-3xl sm:text-5xl md:text-6xl mr-2 sm:mr-4">{playerCount}</strong> PLAYERS
         </div>
-        <div className="text-4xl font-mono text-[var(--text-secondary)]">
-          <strong className="text-[var(--accent-secondary)] text-6xl mr-4">{teamCount}</strong> TEAMS
+        <div className="text-lg sm:text-2xl md:text-4xl font-mono text-[var(--text-secondary)] flex items-center">
+          <strong className="text-[var(--accent-secondary)] text-3xl sm:text-5xl md:text-6xl mr-2 sm:mr-4">{teamCount}</strong> TEAMS
         </div>
       </div>
 
-      <div className="mt-24 text-3xl text-[var(--text-muted)] animate-pulse font-mono tracking-widest">
+      <div className="mt-8 sm:mt-16 text-sm sm:text-xl md:text-3xl text-[var(--text-muted)] animate-pulse font-mono tracking-widest text-center px-4">
         WAITING FOR GAME MASTER
       </div>
     </div>
   );
 
   const renderAnnouncement = () => (
-    <div className="text-center w-full">
-      <StagePanel className="inline-block max-w-[80vw]">
-        <h2 className="text-4xl text-[var(--accent-primary)] font-mono mb-8 tracking-widest">UP NEXT</h2>
-        <h1 className="text-9xl font-black my-12 text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+    <div className="text-center w-full px-2">
+      <StagePanel className="inline-block max-w-[95vw] sm:max-w-[80vw]">
+        <h2 className="text-xl sm:text-3xl md:text-4xl text-[var(--accent-primary)] font-mono mb-4 sm:mb-8 tracking-widest">UP NEXT</h2>
+        <h1 className="text-3xl sm:text-6xl md:text-8xl lg:text-9xl font-black my-4 sm:my-12 text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.3)] break-words">
           {currentGame ? currentGame.name : event.name}
         </h1>
-        <h3 className="text-6xl text-[var(--accent-secondary)] animate-pulse font-mono mt-8">GET READY</h3>
+        <h3 className="text-xl sm:text-4xl md:text-6xl text-[var(--accent-secondary)] animate-pulse font-mono mt-4 sm:mt-8">GET READY</h3>
       </StagePanel>
     </div>
   );
@@ -148,26 +159,26 @@ export default function StagePage() {
       const completedEntities = entities.filter(e => sessionData.chainProgress[e] === 'COMPLETED').length;
 
       return (
-        <div className="w-full max-w-[90vw] mx-auto text-center">
-          <div className="text-5xl font-black text-[var(--accent-primary)] mb-16 uppercase">{currentGame?.name}</div>
+        <div className="w-full max-w-[95vw] mx-auto text-center px-2">
+          <div className="text-2xl sm:text-4xl md:text-5xl font-black text-[var(--accent-primary)] mb-6 sm:mb-12 uppercase">{currentGame?.name}</div>
           <StagePanel>
-            <h1 className="text-7xl font-black mb-8 tracking-widest text-[var(--text-muted)]">
+            <h1 className="text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-black mb-4 sm:mb-8 tracking-widest text-[var(--text-muted)]">
               {currentGame?.template === 'DATA_HUNT' ? 'STORY INVESTIGATION' : 'CHAIN PROGRESSION'}
             </h1>
             
-            <div className="grid grid-cols-2 gap-12 mt-16">
-              <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] rounded-xl p-12 shadow-[0_0_20px_rgba(63,185,80,0.2)]">
-                <div className="text-[10rem] font-black font-mono text-[var(--success)] drop-shadow-[0_0_15px_rgba(63,185,80,0.5)]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 md:gap-12 mt-6 sm:mt-12">
+              <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] p-4 sm:p-8 md:p-12 shadow-[0_0_20px_rgba(63,185,80,0.2)]">
+                <div className="text-[clamp(3.5rem,8vw,9rem)] leading-none font-black font-mono text-[var(--success)] drop-shadow-[0_0_15px_rgba(63,185,80,0.5)]">
                   {completedEntities}
                 </div>
-                <div className="text-5xl font-sans font-bold text-[var(--text-secondary)] mt-4">COMPLETED</div>
+                <div className="text-xl sm:text-3xl md:text-5xl font-sans font-bold text-[var(--text-secondary)] mt-2 sm:mt-4">COMPLETED</div>
               </div>
 
-              <div className="bg-[rgba(0,255,204,0.1)] border-2 border-[var(--accent-primary)] rounded-xl p-12 shadow-[0_0_20px_rgba(0,255,204,0.2)]">
-                <div className="text-[10rem] font-black font-mono text-[var(--accent-primary)] drop-shadow-[0_0_15px_rgba(0,255,204,0.5)]">
+              <div className="bg-[rgba(0,255,204,0.1)] border-2 border-[var(--accent-primary)] p-4 sm:p-8 md:p-12 shadow-[0_0_20px_rgba(0,255,204,0.2)]">
+                <div className="text-[clamp(3.5rem,8vw,9rem)] leading-none font-black font-mono text-[var(--accent-primary)] drop-shadow-[0_0_15px_rgba(0,255,204,0.5)]">
                   {solvingEntities}
                 </div>
-                <div className="text-5xl font-sans font-bold text-[var(--text-secondary)] mt-4">SOLVING</div>
+                <div className="text-xl sm:text-3xl md:text-5xl font-sans font-bold text-[var(--text-secondary)] mt-2 sm:mt-4">SOLVING</div>
               </div>
             </div>
           </StagePanel>
@@ -184,101 +195,101 @@ export default function StagePage() {
       const lb = sessionData.leaderboard || [];
 
       return (
-        <div className="w-full max-w-[95vw] mx-auto text-center">
+        <div className="w-full max-w-[95vw] mx-auto text-center px-2">
           {/* Header */}
-          <div className="flex justify-between items-center mb-8 border-b-2 border-[var(--border-subtle)] pb-6">
-            <div className="text-left">
-              <div className="text-5xl font-black text-[var(--warning)] uppercase tracking-wider flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8 border-b-2 border-[var(--border-subtle)] pb-4 sm:pb-6">
+            <div className="text-left min-w-0">
+              <div className="text-2xl sm:text-4xl md:text-5xl font-black text-[var(--warning)] uppercase tracking-wider flex items-center gap-2 sm:gap-4 truncate">
                 <span>🐛</span> {currentGame?.name || 'DEAD CODE: THE BUG HUNT'}
               </div>
-              <div className="text-2xl text-[var(--text-muted)] font-mono tracking-[0.25em] mt-1">
+              <div className="text-xs sm:text-base md:text-2xl text-[var(--text-muted)] font-mono tracking-[0.2em] sm:tracking-[0.25em] mt-1">
                 SYSTEM INVESTIGATION UNIT · ACTIVE INCIDENT
               </div>
             </div>
             {session.challengeStartTime && currentCase?.timeLimit && (
-              <div className="text-5xl font-black font-mono text-[var(--warning)] drop-shadow-[0_0_15px_rgba(255,180,0,0.5)]">
+              <div className="text-2xl sm:text-4xl md:text-5xl font-black font-mono text-[var(--warning)] drop-shadow-[0_0_15px_rgba(255,180,0,0.5)] shrink-0">
                 ⏱ <StageTimer startTime={session.challengeStartTime} timeLimit={currentCase.timeLimit} />
               </div>
             )}
           </div>
 
           {/* Incident Banner */}
-          <div className="mb-10 p-6 bg-[rgba(255,180,0,0.06)] border-2 border-[var(--warning)] rounded-xl inline-block shadow-[0_0_20px_rgba(255,180,0,0.15)] text-left max-w-4xl w-full">
-            <div className="text-sm font-mono font-bold text-[var(--warning)] uppercase tracking-widest mb-1">
+          <div className="mb-6 sm:mb-10 p-4 sm:p-6 bg-[rgba(255,180,0,0.06)] border-2 border-[var(--warning)] inline-block shadow-[0_0_20px_rgba(255,180,0,0.15)] text-left max-w-4xl w-full">
+            <div className="text-xs sm:text-sm font-mono font-bold text-[var(--warning)] uppercase tracking-widest mb-1">
               {caseConfig.title || currentCase?.prompt || 'ACTIVE MALFUNCTION REPORT'}
             </div>
-            <div className="text-2xl font-sans font-bold text-[var(--text-primary)]">
+            <div className="text-base sm:text-xl md:text-2xl font-sans font-bold text-[var(--text-primary)]">
               {caseConfig.system ? `Target System: ${caseConfig.system}` : currentCase?.prompt}
             </div>
             {repro.expected && (
-              <div className="mt-4 pt-4 border-t border-[rgba(255,180,0,0.2)] grid grid-cols-3 gap-6 font-mono text-center">
-                <div>
-                  <div className="text-xs text-[var(--text-muted)] uppercase">FAULT INPUT</div>
-                  <div className="text-xl font-bold text-[var(--accent-primary)] mt-1">
+              <div className="mt-4 pt-4 border-t border-[rgba(255,180,0,0.2)] grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 font-mono text-center">
+                <div className="p-2 bg-[rgba(0,0,0,0.3)] border border-[var(--border-subtle)]">
+                  <div className="text-[10px] sm:text-xs text-[var(--text-muted)] uppercase">FAULT INPUT</div>
+                  <div className="text-sm sm:text-lg md:text-xl font-bold text-[var(--accent-primary)] mt-1 truncate">
                     {Object.entries(repro.input || {}).map(([k, v]) => `${k}: ${v}`).join(', ') || '72%'}
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs text-[var(--text-muted)] uppercase">EXPECTED OUTPUT</div>
-                  <div className="text-xl font-bold text-[var(--success)] mt-1">{repro.expected}</div>
+                <div className="p-2 bg-[rgba(0,0,0,0.3)] border border-[var(--border-subtle)]">
+                  <div className="text-[10px] sm:text-xs text-[var(--text-muted)] uppercase">EXPECTED OUTPUT</div>
+                  <div className="text-sm sm:text-lg md:text-xl font-bold text-[var(--success)] mt-1 truncate">{repro.expected}</div>
                 </div>
-                <div>
-                  <div className="text-xs text-[var(--text-muted)] uppercase">ACTUAL SYSTEM OUTPUT</div>
-                  <div className="text-xl font-bold text-[var(--error)] mt-1">{repro.actual} (DEFECT)</div>
+                <div className="p-2 bg-[rgba(0,0,0,0.3)] border border-[var(--border-subtle)]">
+                  <div className="text-[10px] sm:text-xs text-[var(--text-muted)] uppercase">ACTUAL OUTPUT</div>
+                  <div className="text-sm sm:text-lg md:text-xl font-bold text-[var(--error)] mt-1 truncate">{repro.actual} (DEFECT)</div>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Left 8 cols: Investigation Metrics */}
-            <div className="col-span-8">
+            <div className="lg:col-span-8 w-full min-w-0">
               <StagePanel>
-                <div className="grid grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                   {/* Total Cases */}
-                  <div className="bg-[rgba(0,212,170,0.05)] border-2 border-[var(--accent-primary)] rounded-xl p-8 shadow-[0_0_20px_rgba(0,212,170,0.15)]">
-                    <div className="text-[6rem] font-black font-mono text-[var(--accent-primary)]">
+                  <div className="bg-[rgba(0,212,170,0.05)] border-2 border-[var(--accent-primary)] p-4 sm:p-6 shadow-[0_0_20px_rgba(0,212,170,0.15)] min-w-0">
+                    <div className="text-3xl sm:text-5xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black font-mono text-[var(--accent-primary)] leading-none truncate">
                       {challenges.length}
                     </div>
-                    <div className="text-2xl font-sans font-bold text-[var(--text-secondary)] mt-2">TOTAL CASES</div>
+                    <div className="text-xs sm:text-sm lg:text-base font-sans font-bold text-[var(--text-secondary)] mt-2 uppercase">TOTAL CASES</div>
                   </div>
 
                   {/* Active Investigators */}
-                  <div className="bg-[rgba(255,180,0,0.08)] border-2 border-[var(--warning)] rounded-xl p-8 shadow-[0_0_20px_rgba(255,180,0,0.15)]">
-                    <div className="text-[6rem] font-black font-mono text-[var(--warning)]">
+                  <div className="bg-[rgba(255,180,0,0.08)] border-2 border-[var(--warning)] p-4 sm:p-6 shadow-[0_0_20px_rgba(255,180,0,0.15)] min-w-0">
+                    <div className="text-3xl sm:text-5xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black font-mono text-[var(--warning)] leading-none truncate">
                       {totalInvestigators}
                     </div>
-                    <div className="text-2xl font-sans font-bold text-[var(--text-secondary)] mt-2">INVESTIGATING</div>
+                    <div className="text-xs sm:text-sm lg:text-base font-sans font-bold text-[var(--text-secondary)] mt-2 uppercase">INVESTIGATING</div>
                   </div>
 
                   {/* Submissions Verified */}
-                  <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] rounded-xl p-8 shadow-[0_0_20px_rgba(63,185,80,0.2)]">
-                    <div className="text-[6rem] font-black font-mono text-[var(--success)]">
+                  <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] p-4 sm:p-6 shadow-[0_0_20px_rgba(63,185,80,0.2)] min-w-0">
+                    <div className="text-3xl sm:text-5xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black font-mono text-[var(--success)] leading-none truncate">
                       {sessionData.answersCount || 0}
                     </div>
-                    <div className="text-2xl font-sans font-bold text-[var(--text-secondary)] mt-2">PATCHES TESTED</div>
+                    <div className="text-xs sm:text-sm lg:text-base font-sans font-bold text-[var(--text-secondary)] mt-2 uppercase">PATCHES TESTED</div>
                   </div>
                 </div>
               </StagePanel>
             </div>
 
             {/* Right 4 cols: Live Leaderboard */}
-            <div className="col-span-4">
+            <div className="lg:col-span-4 w-full min-w-0">
               <StagePanel>
-                <div className="text-2xl font-black font-mono text-[var(--accent-primary)] tracking-widest uppercase mb-6 flex items-center justify-between">
+                <div className="text-lg sm:text-2xl font-black font-mono text-[var(--accent-primary)] tracking-widest uppercase mb-4 sm:mb-6 flex items-center justify-between">
                   <span>🏆 TOP SQUASHERS</span>
-                  <span className="text-sm text-[var(--text-muted)]">SCORE</span>
+                  <span className="text-xs sm:text-sm text-[var(--text-muted)]">SCORE</span>
                 </div>
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2 sm:gap-3">
                   {lb.map((entry: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center px-4 py-3 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg text-lg">
-                      <span className="font-mono text-[var(--text-muted)] font-bold mr-3">#{idx + 1}</span>
+                    <div key={idx} className="flex justify-between items-center px-3 sm:px-4 py-2 sm:py-3 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm sm:text-lg min-w-0">
+                      <span className="font-mono text-[var(--text-muted)] font-bold mr-2 sm:mr-3 shrink-0">#{idx + 1}</span>
                       <span className="font-bold flex-1 truncate text-left">{entry.name}</span>
-                      <span className="font-mono font-bold text-[var(--accent-primary)]">{entry.score} pts</span>
+                      <span className="font-mono font-bold text-[var(--accent-primary)] shrink-0 ml-2">{entry.score} pts</span>
                     </div>
                   ))}
                   {lb.length === 0 && (
-                    <div className="text-center py-6 font-mono text-sm text-[var(--text-muted)]">
+                    <div className="text-center py-6 font-mono text-xs sm:text-sm text-[var(--text-muted)]">
                       STANDBY FOR FIRST PATCH...
                     </div>
                   )}
@@ -308,96 +319,96 @@ export default function StagePage() {
       const lb = sessionData.leaderboard || [];
 
       return (
-        <div className="w-full max-w-[95vw] mx-auto text-center font-mono">
+        <div className="w-full max-w-[95vw] mx-auto text-center font-mono px-2">
           {/* Header */}
-          <div className="flex justify-between items-center mb-8 border-b-2 border-[var(--border-subtle)] pb-6">
-            <div className="text-left">
-              <div className="text-5xl font-black text-[var(--accent-primary)] uppercase tracking-wider flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8 border-b-2 border-[var(--border-subtle)] pb-4 sm:pb-6">
+            <div className="text-left min-w-0">
+              <div className="text-2xl sm:text-4xl md:text-5xl font-black text-[var(--accent-primary)] uppercase tracking-wider flex items-center gap-2 sm:gap-4 truncate">
                 <span>📡</span> {currentGame?.name || 'ROGUE SCANNER'}
               </div>
-              <div className="text-2xl text-[var(--text-muted)] tracking-[0.25em] mt-1 uppercase">
-                AIERA TELEMETRY CLUSTER • MULTI-VARIABLE CORRELATION FORENSICS
+              <div className="text-xs sm:text-base md:text-xl text-[var(--text-muted)] tracking-[0.2em] sm:tracking-[0.25em] mt-1 uppercase">
+                CODENEX TELEMETRY CLUSTER • MULTI-VARIABLE CORRELATION FORENSICS
               </div>
             </div>
             {session.challengeStartTime && currentChal?.timeLimit && (
-              <div className="text-5xl font-black text-[var(--warning)] drop-shadow-[0_0_15px_rgba(255,180,0,0.5)]">
+              <div className="text-2xl sm:text-4xl md:text-5xl font-black text-[var(--warning)] drop-shadow-[0_0_15px_rgba(255,180,0,0.5)] shrink-0">
                 ⏱ <StageTimer startTime={session.challengeStartTime} timeLimit={currentChal.timeLimit} />
               </div>
             )}
           </div>
 
           {/* Scenario Banner */}
-          <div className="mb-10 p-6 bg-[rgba(0,255,204,0.06)] border-2 border-[var(--accent-primary)] rounded-xl inline-block shadow-[0_0_25px_rgba(0,255,204,0.15)] text-left max-w-5xl w-full">
-            <div className="text-sm font-bold text-[var(--accent-primary)] uppercase tracking-widest mb-1">
+          <div className="mb-6 sm:mb-10 p-4 sm:p-6 bg-[rgba(0,255,204,0.06)] border-2 border-[var(--accent-primary)] inline-block shadow-[0_0_25px_rgba(0,255,204,0.15)] text-left max-w-5xl w-full">
+            <div className="text-xs sm:text-sm font-bold text-[var(--accent-primary)] uppercase tracking-widest mb-1">
               SCENARIO: {sp.scenarioTitle}
             </div>
             {sp.missionBrief && (
-              <div className="text-xl text-[var(--text-primary)] leading-relaxed">
+              <div className="text-sm sm:text-lg md:text-xl text-[var(--text-primary)] leading-relaxed">
                 {sp.missionBrief}
               </div>
             )}
           </div>
 
           {/* Grid Layout */}
-          <div className="grid grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Left 8 cols: Investigation Metrics & Recent Probes */}
-            <div className="col-span-8 flex flex-col gap-6">
+            <div className="lg:col-span-8 flex flex-col gap-6 w-full min-w-0">
               <StagePanel>
-                <div className="grid grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                   {/* Total Events */}
-                  <div className="bg-[rgba(255,255,255,0.04)] border-2 border-[var(--border-subtle)] rounded-xl p-6 shadow-md">
-                    <div className="text-[5rem] font-black text-white leading-none">
+                  <div className="bg-[rgba(255,255,255,0.04)] border-2 border-[var(--border-subtle)] p-4 sm:p-6 shadow-md min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2rem,3.5vw,4.5rem)] font-black text-white leading-none truncate">
                       {sp.totalEvents}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">TOTAL EVENTS</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase break-words">TOTAL EVENTS</div>
                   </div>
 
                   {/* Active Analysts */}
-                  <div className="bg-[rgba(0,255,204,0.08)] border-2 border-[var(--accent-primary)] rounded-xl p-6 shadow-[0_0_20px_rgba(0,255,204,0.15)]">
-                    <div className="text-[5rem] font-black text-[var(--accent-primary)] leading-none">
+                  <div className="bg-[rgba(0,255,204,0.08)] border-2 border-[var(--accent-primary)] p-4 sm:p-6 shadow-[0_0_20px_rgba(0,255,204,0.15)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2rem,3.5vw,4.5rem)] font-black text-[var(--accent-primary)] leading-none truncate">
                       {sp.totalAnalysts}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">ANALYSTS</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase break-words">ANALYSTS</div>
                   </div>
 
                   {/* Cleared False Positives */}
-                  <div className="bg-[rgba(235,160,0,0.08)] border-2 border-[var(--warning)] rounded-xl p-6 shadow-[0_0_20px_rgba(235,160,0,0.15)]">
-                    <div className="text-[5rem] font-black text-[var(--warning)] leading-none">
+                  <div className="bg-[rgba(235,160,0,0.08)] border-2 border-[var(--warning)] p-4 sm:p-6 shadow-[0_0_20px_rgba(235,160,0,0.15)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2rem,3.5vw,4.5rem)] font-black text-[var(--warning)] leading-none truncate">
                       {sp.clearedFalsePositivesCount}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">FALSE POSITIVES CLEARED</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase break-words">FALSE POSITIVES CLEARED</div>
                   </div>
 
                   {/* Verified Anomalies */}
-                  <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] rounded-xl p-6 shadow-[0_0_20px_rgba(63,185,80,0.2)]">
-                    <div className="text-[5rem] font-black text-[var(--success)] leading-none">
+                  <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] p-4 sm:p-6 shadow-[0_0_20px_rgba(63,185,80,0.2)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2rem,3.5vw,4.5rem)] font-black text-[var(--success)] leading-none truncate">
                       {sp.solvedCount}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">ANOMALIES VERIFIED</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase break-words">ANOMALIES VERIFIED</div>
                   </div>
                 </div>
               </StagePanel>
 
               {/* Investigation Pipeline / Stages Ticker */}
               <StagePanel>
-                <div className="flex items-center justify-between p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl font-mono text-sm font-bold">
+                <div className="flex flex-wrap items-center justify-between p-3 sm:p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] font-mono text-[10px] sm:text-xs md:text-sm font-bold gap-2">
                   <div className="flex items-center gap-2 text-[var(--accent-primary)]">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent-primary)] animate-ping" />
+                    <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-[var(--accent-primary)] animate-ping" />
                     <span>LIVE EVENT STREAM</span>
                   </div>
-                  <span className="text-[var(--text-muted)]">➔</span>
+                  <span className="text-[var(--text-muted)] hidden sm:inline">➔</span>
                   <div className="flex items-center gap-2 text-[var(--warning)]">
                     <span>SUSPICIOUS SIGNAL</span>
                   </div>
-                  <span className="text-[var(--text-muted)]">➔</span>
+                  <span className="text-[var(--text-muted)] hidden sm:inline">➔</span>
                   <div className="flex items-center gap-2 text-white">
                     <span>PATTERN OVERLAY</span>
                   </div>
-                  <span className="text-[var(--text-muted)]">➔</span>
+                  <span className="text-[var(--text-muted)] hidden sm:inline">➔</span>
                   <div className="flex items-center gap-2 text-[var(--accent-secondary)]">
                     <span>VERIFICATION</span>
                   </div>
-                  <span className="text-[var(--text-muted)]">➔</span>
+                  <span className="text-[var(--text-muted)] hidden sm:inline">➔</span>
                   <div className={`flex items-center gap-2 ${sp.solvedCount > 0 ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
                     <span>ANOMALY CONFIRMED</span>
                   </div>
@@ -406,24 +417,24 @@ export default function StagePage() {
 
               {/* Recent Dispatched Probes Ticker */}
               <StagePanel>
-                <div className="text-2xl font-black text-left text-white uppercase tracking-wider mb-4 flex items-center justify-between">
+                <div className="text-base sm:text-xl md:text-2xl font-black text-left text-white uppercase tracking-wider mb-4 flex items-center justify-between">
                   <span>📡 LIVE CLUSTER PROBE ACTIVITY</span>
-                  <span className="text-sm text-[var(--accent-primary)]">{sp.recentProbes.length} PROBES LOGGED</span>
+                  <span className="text-[10px] sm:text-xs md:text-sm text-[var(--accent-primary)]">{sp.recentProbes.length} PROBES LOGGED</span>
                 </div>
                 {sp.recentProbes.length === 0 ? (
-                  <div className="text-center py-8 text-xl text-[var(--text-muted)] uppercase">
+                  <div className="text-center py-6 sm:py-8 text-xs sm:text-base md:text-xl text-[var(--text-muted)] uppercase">
                     AWAITING FIRST TELEMETRY PROBE DISPATCH...
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3 text-left">
+                  <div className="flex flex-col gap-2 sm:gap-3 text-left">
                     {sp.recentProbes.slice(0, 5).map((p: any, idx: number) => (
-                      <div key={idx} className="p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg flex items-center justify-between font-mono">
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg font-bold text-[var(--accent-primary)]">[{p.playerName}]</span>
-                          <span className="text-base text-white">{p.summary}</span>
+                      <div key={idx} className="p-2.5 sm:p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex flex-wrap items-center justify-between font-mono gap-2">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                          <span className="text-xs sm:text-sm md:text-lg font-bold text-[var(--accent-primary)] shrink-0">[{p.playerName}]</span>
+                          <span className="text-[10px] sm:text-xs md:text-base text-white truncate">{p.summary}</span>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <span className="px-3 py-1 rounded font-bold text-xs uppercase bg-[rgba(0,255,204,0.15)] text-[var(--accent-primary)] border border-[var(--accent-primary)]">
+                        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                          <span className="px-2 py-0.5 sm:px-3 sm:py-1 font-bold text-[9px] sm:text-xs uppercase bg-[rgba(0,255,204,0.15)] text-[var(--accent-primary)] border border-[var(--accent-primary)]">
                             {p.action}
                           </span>
                         </div>
@@ -435,22 +446,22 @@ export default function StagePage() {
             </div>
 
             {/* Right 4 cols: Live Leaderboard */}
-            <div className="col-span-4">
+            <div className="lg:col-span-4 w-full min-w-0">
               <StagePanel>
-                <div className="text-2xl font-black text-[var(--accent-primary)] tracking-widest uppercase mb-6 flex items-center justify-between">
+                <div className="text-base sm:text-xl md:text-2xl font-black text-[var(--accent-primary)] tracking-widest uppercase mb-4 sm:mb-6 flex items-center justify-between">
                   <span>🏆 LEAD FORENSIC ANALYSTS</span>
-                  <span className="text-sm text-[var(--text-muted)]">SCORE</span>
+                  <span className="text-xs sm:text-sm text-[var(--text-muted)]">SCORE</span>
                 </div>
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2 sm:gap-3">
                   {lb.map((entry: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center px-4 py-3 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg text-lg">
-                      <span className="text-[var(--text-muted)] font-bold mr-3">#{idx + 1}</span>
+                    <div key={idx} className="flex justify-between items-center px-3 sm:px-4 py-2 sm:py-3 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm sm:text-lg min-w-0">
+                      <span className="text-[var(--text-muted)] font-bold mr-2 sm:mr-3 shrink-0">#{idx + 1}</span>
                       <span className="font-bold flex-1 truncate text-left">{entry.name}</span>
-                      <span className="font-bold text-[var(--accent-primary)]">{entry.score} pts</span>
+                      <span className="font-bold text-[var(--accent-primary)] shrink-0 ml-2">{entry.score} pts</span>
                     </div>
                   ))}
                   {lb.length === 0 && (
-                    <div className="text-center py-6 text-sm text-[var(--text-muted)]">
+                    <div className="text-center py-6 text-xs sm:text-sm text-[var(--text-muted)]">
                       STANDBY FOR FIRST ACCUSATION...
                     </div>
                   )}
@@ -479,93 +490,93 @@ export default function StagePage() {
       const lb = sessionData.leaderboard || [];
 
       return (
-        <div className="w-full max-w-[95vw] mx-auto text-center font-mono">
+        <div className="w-full max-w-[95vw] mx-auto text-center font-mono px-2">
           {/* Header */}
-          <div className="flex justify-between items-center mb-8 border-b-2 border-[var(--border-subtle)] pb-6">
-            <div className="text-left">
-              <div className="text-5xl font-black text-[var(--accent-primary)] uppercase tracking-wider flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8 border-b-2 border-[var(--border-subtle)] pb-4 sm:pb-6">
+            <div className="text-left min-w-0">
+              <div className="text-2xl sm:text-4xl md:text-5xl font-black text-[var(--accent-primary)] uppercase tracking-wider flex items-center gap-2 sm:gap-4 truncate">
                 <span>🕵️</span> {currentGame?.name || 'THE WITNESS'}
               </div>
-              <div className="text-2xl text-[var(--text-muted)] tracking-[0.25em] mt-1 uppercase">
+              <div className="text-xs sm:text-base md:text-xl text-[var(--text-muted)] tracking-[0.2em] sm:tracking-[0.25em] mt-1 uppercase">
                 FORENSIC LOGGING SUB-SYSTEM · LIVE INTERROGATION
               </div>
             </div>
             {session.challengeStartTime && currentChal?.timeLimit && (
-              <div className="text-5xl font-black text-[var(--warning)] drop-shadow-[0_0_15px_rgba(255,180,0,0.5)]">
+              <div className="text-2xl sm:text-4xl md:text-5xl font-black text-[var(--warning)] drop-shadow-[0_0_15px_rgba(255,180,0,0.5)] shrink-0">
                 ⏱ <StageTimer startTime={session.challengeStartTime} timeLimit={currentChal.timeLimit} />
               </div>
             )}
           </div>
 
           {/* Incident Banner */}
-          <div className="mb-10 p-6 bg-[rgba(0,255,204,0.06)] border-2 border-[var(--accent-primary)] rounded-xl inline-block shadow-[0_0_25px_rgba(0,255,204,0.15)] text-left max-w-5xl w-full">
-            <div className="text-sm font-bold text-[var(--accent-primary)] uppercase tracking-widest mb-1">
+          <div className="mb-6 sm:mb-10 p-4 sm:p-6 bg-[rgba(0,255,204,0.06)] border-2 border-[var(--accent-primary)] inline-block shadow-[0_0_25px_rgba(0,255,204,0.15)] text-left max-w-5xl w-full">
+            <div className="text-xs sm:text-sm font-bold text-[var(--accent-primary)] uppercase tracking-widest mb-1">
               CASE: {wp.caseTitle}
             </div>
             {wp.missionBrief && (
-              <div className="text-xl text-[var(--text-primary)] leading-relaxed">
+              <div className="text-sm sm:text-lg md:text-xl text-[var(--text-primary)] leading-relaxed">
                 {wp.missionBrief}
               </div>
             )}
           </div>
 
           {/* Grid Layout */}
-          <div className="grid grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Left 8 cols: Investigation Metrics & Recent Testimonies */}
-            <div className="col-span-8 flex flex-col gap-6">
+            <div className="lg:col-span-8 flex flex-col gap-6 w-full min-w-0">
               <StagePanel>
-                <div className="grid grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
                   {/* Total Suspects */}
-                  <div className="bg-[rgba(255,255,255,0.04)] border-2 border-[var(--border-subtle)] rounded-xl p-8 shadow-md">
-                    <div className="text-[6rem] font-black text-white">
+                  <div className="bg-[rgba(255,255,255,0.04)] border-2 border-[var(--border-subtle)] p-4 sm:p-6 shadow-md min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black text-white leading-none truncate">
                       {wp.totalSuspects}
                     </div>
-                    <div className="text-2xl font-bold text-[var(--text-secondary)] mt-2 uppercase">TOTAL SUSPECTS</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase">TOTAL SUSPECTS</div>
                   </div>
 
                   {/* Active Investigators */}
-                  <div className="bg-[rgba(0,255,204,0.08)] border-2 border-[var(--accent-primary)] rounded-xl p-8 shadow-[0_0_20px_rgba(0,255,204,0.15)]">
-                    <div className="text-[6rem] font-black text-[var(--accent-primary)]">
+                  <div className="bg-[rgba(0,255,204,0.08)] border-2 border-[var(--accent-primary)] p-4 sm:p-6 shadow-[0_0_20px_rgba(0,255,204,0.15)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black text-[var(--accent-primary)] leading-none truncate">
                       {wp.totalInvestigators}
                     </div>
-                    <div className="text-2xl font-bold text-[var(--text-secondary)] mt-2 uppercase">INVESTIGATING</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase">INVESTIGATING</div>
                   </div>
 
                   {/* Solved Cases */}
-                  <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] rounded-xl p-8 shadow-[0_0_20px_rgba(63,185,80,0.2)]">
-                    <div className="text-[6rem] font-black text-[var(--success)]">
+                  <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] p-4 sm:p-6 shadow-[0_0_20px_rgba(63,185,80,0.2)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black text-[var(--success)] leading-none truncate">
                       {wp.solvedCount}
                     </div>
-                    <div className="text-2xl font-bold text-[var(--text-secondary)] mt-2 uppercase">CASES CRACKED</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase">CASES CRACKED</div>
                   </div>
                 </div>
               </StagePanel>
 
               {/* Recent Dispatched Inquiries Ticker */}
               <StagePanel>
-                <div className="text-2xl font-black text-left text-white uppercase tracking-wider mb-4 flex items-center justify-between">
+                <div className="text-base sm:text-xl md:text-2xl font-black text-left text-white uppercase tracking-wider mb-4 flex items-center justify-between">
                   <span>📡 LIVE WITNESS TESTIMONY TICKER</span>
-                  <span className="text-sm text-[var(--accent-primary)]">{wp.recentTestimonies.length} RECENT INQUIRIES</span>
+                  <span className="text-[10px] sm:text-xs md:text-sm text-[var(--accent-primary)]">{wp.recentTestimonies.length} RECENT INQUIRIES</span>
                 </div>
                 {wp.recentTestimonies.length === 0 ? (
-                  <div className="text-center py-8 text-xl text-[var(--text-muted)] uppercase">
+                  <div className="text-center py-6 sm:py-8 text-xs sm:text-base md:text-xl text-[var(--text-muted)] uppercase">
                     AWAITING FIRST INQUIRY DISPATCH FROM DETECTIVES...
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3 text-left">
+                  <div className="flex flex-col gap-2 sm:gap-3 text-left">
                     {wp.recentTestimonies.slice(0, 5).map((t: any, idx: number) => (
-                      <div key={idx} className="p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg font-bold text-[var(--accent-primary)]">[{t.playerName}]</span>
-                          <span className="text-lg text-white">"{t.questionText}"</span>
+                      <div key={idx} className="p-2.5 sm:p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                          <span className="text-xs sm:text-base md:text-lg font-bold text-[var(--accent-primary)] shrink-0">[{t.playerName}]</span>
+                          <span className="text-[10px] sm:text-sm md:text-lg text-white truncate">"{t.questionText}"</span>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <span className={`px-3 py-1 rounded font-black text-sm uppercase ${
-                            t.verdict ? 'bg-[rgba(63,185,80,0.2)] text-[var(--success)]' : 'bg-[rgba(248,81,73,0.2)] text-[var(--error)]'
+                        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                          <span className={`px-2 py-0.5 sm:px-3 sm:py-1 font-black text-[9px] sm:text-xs uppercase ${
+                            t.verdict ? 'bg-[rgba(63,185,80,0.2)] text-[var(--success)] border border-[var(--success)]' : 'bg-[rgba(248,81,73,0.2)] text-[var(--error)] border border-[var(--error)]'
                           }`}>
                             {t.verdict ? 'VERIFIED' : 'CONTRADICTED'}
                           </span>
-                          <span className="text-sm text-[var(--text-muted)] font-mono">
+                          <span className="text-[10px] sm:text-xs md:text-sm text-[var(--text-muted)] font-mono">
                             {t.eliminatedCount} Exonerated
                           </span>
                         </div>
@@ -577,22 +588,22 @@ export default function StagePage() {
             </div>
 
             {/* Right 4 cols: Live Leaderboard */}
-            <div className="col-span-4">
+            <div className="lg:col-span-4 w-full min-w-0">
               <StagePanel>
-                <div className="text-2xl font-black text-[var(--accent-primary)] tracking-widest uppercase mb-6 flex items-center justify-between">
+                <div className="text-base sm:text-xl md:text-2xl font-black text-[var(--accent-primary)] tracking-widest uppercase mb-4 sm:mb-6 flex items-center justify-between">
                   <span>🏆 LEAD DETECTIVES</span>
-                  <span className="text-sm text-[var(--text-muted)]">SCORE</span>
+                  <span className="text-xs sm:text-sm text-[var(--text-muted)]">SCORE</span>
                 </div>
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2 sm:gap-3">
                   {lb.map((entry: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center px-4 py-3 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg text-lg">
-                      <span className="text-[var(--text-muted)] font-bold mr-3">#{idx + 1}</span>
+                    <div key={idx} className="flex justify-between items-center px-3 sm:px-4 py-2 sm:py-3 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm sm:text-lg min-w-0">
+                      <span className="text-[var(--text-muted)] font-bold mr-2 sm:mr-3 shrink-0">#{idx + 1}</span>
                       <span className="font-bold flex-1 truncate text-left">{entry.name}</span>
-                      <span className="font-bold text-[var(--accent-primary)]">{entry.score} pts</span>
+                      <span className="font-bold text-[var(--accent-primary)] shrink-0 ml-2">{entry.score} pts</span>
                     </div>
                   ))}
                   {lb.length === 0 && (
-                    <div className="text-center py-6 text-sm text-[var(--text-muted)]">
+                    <div className="text-center py-6 text-xs sm:text-sm text-[var(--text-muted)]">
                       STANDBY FOR FIRST ACCUSATION...
                     </div>
                   )}
@@ -658,65 +669,65 @@ export default function StagePage() {
           </div>
 
           {/* Grid Layout */}
-          <div className="grid grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Left 8 cols: Investigation Metrics & Recent Executions */}
-            <div className="col-span-8 flex flex-col gap-6">
+            <div className="lg:col-span-8 flex flex-col gap-6 w-full min-w-0">
               <StagePanel>
-                <div className="grid grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                   {/* Total Agents */}
-                  <div className="bg-[rgba(255,255,255,0.04)] border-2 border-[var(--border-subtle)] rounded-xl p-6 shadow-md">
-                    <div className="text-[5rem] font-black text-white leading-none">
+                  <div className="bg-[rgba(255,255,255,0.04)] border-2 border-[var(--border-subtle)] rounded-xl p-4 sm:p-6 shadow-md min-w-0">
+                    <div className="text-3xl sm:text-4xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black text-white leading-none truncate">
                       {mp.totalAgents}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">AGENTS IN FIELD</div>
+                    <div className="text-xs sm:text-sm lg:text-base font-bold text-[var(--text-secondary)] mt-2 uppercase break-words">AGENTS IN FIELD</div>
                   </div>
 
                   {/* Plans Executed */}
-                  <div className="bg-[rgba(0,255,204,0.08)] border-2 border-[var(--accent-primary)] rounded-xl p-6 shadow-[0_0_20px_rgba(0,255,204,0.15)]">
-                    <div className="text-[5rem] font-black text-[var(--accent-primary)] leading-none">
+                  <div className="bg-[rgba(0,255,204,0.08)] border-2 border-[var(--accent-primary)] rounded-xl p-4 sm:p-6 shadow-[0_0_20px_rgba(0,255,204,0.15)] min-w-0">
+                    <div className="text-3xl sm:text-4xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black text-[var(--accent-primary)] leading-none truncate">
                       {mp.plansExecutedCount}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">PLANS ENGAGED</div>
+                    <div className="text-xs sm:text-sm lg:text-base font-bold text-[var(--text-secondary)] mt-2 uppercase break-words">PLANS ENGAGED</div>
                   </div>
 
                   {/* Active Failures / Splicing */}
-                  <div className="bg-[rgba(235,160,0,0.08)] border-2 border-[var(--warning)] rounded-xl p-6 shadow-[0_0_20px_rgba(235,160,0,0.15)]">
-                    <div className="text-[5rem] font-black text-[var(--warning)] leading-none">
+                  <div className="bg-[rgba(235,160,0,0.08)] border-2 border-[var(--warning)] rounded-xl p-4 sm:p-6 shadow-[0_0_20px_rgba(235,160,0,0.15)] min-w-0">
+                    <div className="text-3xl sm:text-4xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black text-[var(--warning)] leading-none truncate">
                       {mp.activeFailures}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">ALARMS / SPLICING</div>
+                    <div className="text-xs sm:text-sm lg:text-base font-bold text-[var(--text-secondary)] mt-2 uppercase break-words">ALARMS / SPLICING</div>
                   </div>
 
                   {/* Successful Infiltrations */}
-                  <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] rounded-xl p-6 shadow-[0_0_20px_rgba(63,185,80,0.2)]">
-                    <div className="text-[5rem] font-black text-[var(--success)] leading-none">
+                  <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] rounded-xl p-4 sm:p-6 shadow-[0_0_20px_rgba(63,185,80,0.2)] min-w-0">
+                    <div className="text-3xl sm:text-4xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black text-[var(--success)] leading-none truncate">
                       {mp.successfulInfiltrations}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">EXTRACTIONS</div>
+                    <div className="text-xs sm:text-sm lg:text-base font-bold text-[var(--text-secondary)] mt-2 uppercase break-words">EXTRACTIONS</div>
                   </div>
                 </div>
               </StagePanel>
 
               {/* Planning Lifecycle Pipeline */}
               <StagePanel>
-                <div className="flex items-center justify-between p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl font-mono text-sm font-bold">
+                <div className="flex flex-wrap items-center justify-between p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl font-mono text-xs sm:text-sm font-bold gap-2">
                   <div className="flex items-center gap-2 text-[var(--accent-primary)]">
                     <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent-primary)] animate-ping" />
                     <span>DAG ANALYSIS</span>
                   </div>
-                  <span className="text-[var(--text-muted)]">➔</span>
+                  <span className="text-[var(--text-muted)] hidden sm:inline">➔</span>
                   <div className="flex items-center gap-2 text-cyan-400">
                     <span>MAGNETIC DOCK SLOTS</span>
                   </div>
-                  <span className="text-[var(--text-muted)]">➔</span>
+                  <span className="text-[var(--text-muted)] hidden sm:inline">➔</span>
                   <div className="flex items-center gap-2 text-yellow-400">
                     <span>BATTERY CONSTRAINT</span>
                   </div>
-                  <span className="text-[var(--text-muted)]">➔</span>
+                  <span className="text-[var(--text-muted)] hidden sm:inline">➔</span>
                   <div className="flex items-center gap-2 text-[var(--accent-secondary)]">
                     <span>EXECUTE PLAN</span>
                   </div>
-                  <span className="text-[var(--text-muted)]">➔</span>
+                  <span className="text-[var(--text-muted)] hidden sm:inline">➔</span>
                   <div className="flex items-center gap-2 text-[var(--success)]">
                     <span>CLEAN EXTRACTION</span>
                   </div>
@@ -725,35 +736,35 @@ export default function StagePage() {
 
               {/* Live Mission Transmissions */}
               <StagePanel>
-                <div className="text-2xl font-black text-[var(--accent-primary)] tracking-widest uppercase mb-6 flex items-center justify-between">
+                <div className="text-xl sm:text-2xl font-black text-[var(--accent-primary)] tracking-widest uppercase mb-6 flex items-center justify-between">
                   <span>⚡ REAL-TIME CORRIDOR TRANSMISSIONS</span>
                   <span className="text-xs text-[var(--text-muted)]">LIVE FLEET TELEMETRY</span>
                 </div>
                 {mp.recentExecutions.length === 0 ? (
-                  <div className="text-center py-10 text-lg text-[var(--text-muted)] font-mono animate-pulse">
+                  <div className="text-center py-10 text-base sm:text-lg text-[var(--text-muted)] font-mono animate-pulse">
                     AWAITING INITIAL PLAN LOCK &amp; EXECUTION FROM FLEET AGENTS...
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
                     {mp.recentExecutions.map((exec: any, idx: number) => (
-                      <div key={idx} className="p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg flex items-center justify-between font-mono">
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg font-bold text-[var(--accent-primary)]">[{exec.playerName}]</span>
-                          <span className="text-sm text-[var(--text-muted)]">OP: {exec.operationId}</span>
-                          <span className="text-xs px-2 py-0.5 rounded bg-black/40 text-amber-300 border border-amber-500/30">
+                      <div key={idx} className="p-3 sm:p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg flex flex-wrap items-center justify-between font-mono gap-2">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+                          <span className="text-sm sm:text-lg font-bold text-[var(--accent-primary)] shrink-0">[{exec.playerName}]</span>
+                          <span className="text-xs sm:text-sm text-[var(--text-muted)]">OP: {exec.operationId}</span>
+                          <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded bg-black/40 text-amber-300 border border-amber-500/30">
                             ⚡ {exec.batteryUsed} ENERGY
                           </span>
-                          <span className="text-xs px-2 py-0.5 rounded bg-black/40 text-cyan-300 border border-cyan-500/30">
+                          <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded bg-black/40 text-cyan-300 border border-cyan-500/30">
                             {exec.stepsCount} STEPS
                           </span>
                         </div>
                         <div className="flex items-center gap-4">
                           {exec.isCorrect ? (
-                            <span className="px-3 py-1 rounded font-bold text-xs uppercase bg-[rgba(63,185,80,0.15)] text-[var(--success)] border border-[var(--success)]">
+                            <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 rounded font-bold text-[10px] sm:text-xs uppercase bg-[rgba(63,185,80,0.15)] text-[var(--success)] border border-[var(--success)]">
                               EXTRACTION CONFIRMED ✓
                             </span>
                           ) : (
-                            <span className="px-3 py-1 rounded font-bold text-xs uppercase bg-[rgba(235,160,0,0.15)] text-[var(--warning)] border border-[var(--warning)]">
+                            <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 rounded font-bold text-[10px] sm:text-xs uppercase bg-[rgba(235,160,0,0.15)] text-[var(--warning)] border border-[var(--warning)]">
                               CAUSAL FAILURE · SPLICING
                             </span>
                           )}
@@ -766,7 +777,7 @@ export default function StagePage() {
             </div>
 
             {/* Right 4 cols: Live Leaderboard */}
-            <div className="col-span-4">
+            <div className="lg:col-span-4 w-full min-w-0">
               <StagePanel>
                 <div className="text-2xl font-black text-[var(--accent-primary)] tracking-widest uppercase mb-6 flex items-center justify-between">
                   <span>🏆 TACTICAL OPERATIVES</span>
@@ -862,42 +873,42 @@ export default function StagePage() {
           </div>
 
           {/* Grid Layout */}
-          <div className="grid grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Left 8 cols: Telemetry Counters, Topology Canvas, & Real-Time Dispatches */}
-            <div className="col-span-8 flex flex-col gap-6">
+            <div className="lg:col-span-8 flex flex-col gap-6 w-full min-w-0">
               {/* Telemetry Stat Cards */}
               <StagePanel>
-                <div className="grid grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                   {/* Controllers */}
-                  <div className="bg-[rgba(255,255,255,0.04)] border-2 border-[var(--border-subtle)] rounded-xl p-6 shadow-md">
-                    <div className="text-[5rem] font-black text-white leading-none">
+                  <div className="bg-[rgba(255,255,255,0.04)] border-2 border-[var(--border-subtle)] p-4 sm:p-6 shadow-md min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2rem,3.5vw,4.5rem)] font-black text-white leading-none truncate">
                       {rp.totalControllers}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">CONTROLLERS ACTIVE</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase">CONTROLLERS ACTIVE</div>
                   </div>
 
                   {/* Transmissions */}
-                  <div className="bg-[rgba(0,255,204,0.08)] border-2 border-[var(--accent-primary)] rounded-xl p-6 shadow-[0_0_20px_rgba(0,255,204,0.15)]">
-                    <div className="text-[5rem] font-black text-[var(--accent-primary)] leading-none">
+                  <div className="bg-[rgba(0,255,204,0.08)] border-2 border-[var(--accent-primary)] p-4 sm:p-6 shadow-[0_0_20px_rgba(0,255,204,0.15)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2rem,3.5vw,4.5rem)] font-black text-[var(--accent-primary)] leading-none truncate">
                       {rp.transmissionsCount}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">DISPATCHES</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase">DISPATCHES</div>
                   </div>
 
                   {/* Deliveries */}
-                  <div className="bg-[rgba(63,185,80,0.08)] border-2 border-[var(--success)] rounded-xl p-6 shadow-[0_0_20px_rgba(63,185,80,0.15)]">
-                    <div className="text-[5rem] font-black text-[var(--success)] leading-none">
+                  <div className="bg-[rgba(63,185,80,0.08)] border-2 border-[var(--success)] p-4 sm:p-6 shadow-[0_0_20px_rgba(63,185,80,0.15)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2rem,3.5vw,4.5rem)] font-black text-[var(--success)] leading-none truncate">
                       {rp.successfulDeliveries}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">DELIVERED SLA OK</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase">DELIVERED SLA OK</div>
                   </div>
 
                   {/* Congestions */}
-                  <div className="bg-[rgba(248,81,73,0.08)] border-2 border-[var(--error)] rounded-xl p-6 shadow-[0_0_20px_rgba(248,81,73,0.15)]">
-                    <div className="text-[5rem] font-black text-[var(--error)] leading-none">
+                  <div className="bg-[rgba(248,81,73,0.08)] border-2 border-[var(--error)] p-4 sm:p-6 shadow-[0_0_20px_rgba(248,81,73,0.15)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2rem,3.5vw,4.5rem)] font-black text-[var(--error)] leading-none truncate">
                       {rp.activeCongestions}
                     </div>
-                    <div className="text-lg font-bold text-[var(--text-secondary)] mt-2 uppercase">BUFFER OVERFLOWS</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-bold text-[var(--text-secondary)] mt-2 uppercase">BUFFER OVERFLOWS</div>
                   </div>
                 </div>
               </StagePanel>
@@ -1033,27 +1044,27 @@ export default function StagePage() {
             </div>
 
             {/* Right 4 cols: Leaderboard & Controller Fleet */}
-            <div className="col-span-4 flex flex-col gap-6">
+            <div className="lg:col-span-4 flex flex-col gap-6 w-full min-w-0">
               {/* Leaderboard */}
               <StagePanel>
-                <div className="text-2xl font-black text-[var(--accent-primary)] tracking-widest uppercase mb-6 flex items-center justify-between">
+                <div className="text-base sm:text-xl md:text-2xl font-black text-[var(--accent-primary)] tracking-widest uppercase mb-4 sm:mb-6 flex items-center justify-between">
                   <span>🏆 TRAFFIC CONTROLLERS</span>
                   <span className="text-xs text-[var(--text-muted)]">TOP RANKS</span>
                 </div>
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2 sm:gap-3">
                   {lb.slice(0, 8).map((entry: any, idx: number) => (
-                    <div key={entry.id || idx} className="p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg flex items-center justify-between font-mono">
-                      <div className="flex items-center gap-4">
-                        <span className={`text-2xl font-black ${idx === 0 ? 'text-amber-400' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-600' : 'text-[var(--text-muted)]'}`}>
+                    <div key={entry.id || idx} className="p-2.5 sm:p-4 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex items-center justify-between font-mono text-sm sm:text-lg min-w-0">
+                      <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                        <span className={`text-base sm:text-2xl font-black shrink-0 ${idx === 0 ? 'text-amber-400' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-600' : 'text-[var(--text-muted)]'}`}>
                           #{idx + 1}
                         </span>
-                        <span className="text-lg font-bold text-white">{entry.displayName || entry.name}</span>
+                        <span className="text-xs sm:text-lg font-bold text-white truncate">{entry.displayName || entry.name}</span>
                       </div>
-                      <span className="text-2xl font-black text-[var(--accent-primary)]">{entry.score}</span>
+                      <span className="text-sm sm:text-2xl font-black text-[var(--accent-primary)] shrink-0 ml-2">{entry.score}</span>
                     </div>
                   ))}
                   {lb.length === 0 && (
-                    <div className="text-center py-6 text-[var(--text-muted)]">
+                    <div className="text-center py-6 text-xs sm:text-sm text-[var(--text-muted)]">
                       STANDBY FOR FIRST TRANSMISSION SCORE...
                     </div>
                   )}
@@ -1113,66 +1124,66 @@ export default function StagePage() {
             </div>
           )}
           
-          <div className="grid grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Left 8 cols: Stats Grid */}
-            <div className="col-span-8">
+            <div className="lg:col-span-8 w-full min-w-0">
               <StagePanel>
-                <div className="grid grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
                   {/* Vaults */}
-                  <div className="bg-[rgba(0,255,204,0.05)] border-2 border-[var(--accent-primary)] rounded-xl p-8 shadow-[0_0_20px_rgba(0,255,204,0.15)]">
-                    <div className="text-[6rem] font-black font-mono text-[var(--accent-primary)] drop-shadow-[0_0_15px_rgba(0,255,204,0.5)]">
+                  <div className="bg-[rgba(0,255,204,0.05)] border-2 border-[var(--accent-primary)] p-4 sm:p-6 shadow-[0_0_20px_rgba(0,255,204,0.15)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black font-mono text-[var(--accent-primary)] drop-shadow-[0_0_15px_rgba(0,255,204,0.5)] truncate">
                       {totalVaults}
                     </div>
-                    <div className="text-2xl font-sans font-bold text-[var(--text-secondary)] mt-2">TOTAL VAULTS</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-sans font-bold text-[var(--text-secondary)] mt-2 uppercase">TOTAL VAULTS</div>
                   </div>
                   
                   {/* Breaching */}
-                  <div className="bg-[rgba(255,180,0,0.08)] border-2 border-[var(--warning)] rounded-xl p-8 shadow-[0_0_20px_rgba(255,180,0,0.15)]">
-                    <div className="text-[6rem] font-black font-mono text-[var(--warning)] drop-shadow-[0_0_15px_rgba(255,180,0,0.5)]">
+                  <div className="bg-[rgba(255,180,0,0.08)] border-2 border-[var(--warning)] p-4 sm:p-6 shadow-[0_0_20px_rgba(255,180,0,0.15)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black font-mono text-[var(--warning)] drop-shadow-[0_0_15px_rgba(255,180,0,0.5)] truncate">
                       {solvingEntities}
                     </div>
-                    <div className="text-2xl font-sans font-bold text-[var(--text-secondary)] mt-2">BREACHING</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-sans font-bold text-[var(--text-secondary)] mt-2 uppercase">BREACHING</div>
                   </div>
 
                   {/* Cracked */}
-                  <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] rounded-xl p-8 shadow-[0_0_20px_rgba(63,185,80,0.2)]">
-                    <div className="text-[6rem] font-black font-mono text-[var(--success)] drop-shadow-[0_0_15px_rgba(63,185,80,0.5)]">
+                  <div className="bg-[rgba(63,185,80,0.1)] border-2 border-[var(--success)] p-4 sm:p-6 shadow-[0_0_20px_rgba(63,185,80,0.2)] min-w-0">
+                    <div className="text-2xl sm:text-4xl lg:text-[clamp(2.5rem,4vw,5rem)] font-black font-mono text-[var(--success)] drop-shadow-[0_0_15px_rgba(63,185,80,0.5)] truncate">
                       {completedEntities}
                     </div>
-                    <div className="text-2xl font-sans font-bold text-[var(--text-secondary)] mt-2">CRACKED</div>
+                    <div className="text-[10px] sm:text-xs lg:text-sm font-sans font-bold text-[var(--text-secondary)] mt-2 uppercase">CRACKED</div>
                   </div>
                 </div>
               </StagePanel>
               
               {isIterationVault && (
-                <div className="mt-8 p-6 bg-[rgba(0,255,204,0.06)] border-2 border-[var(--accent-primary)] rounded-xl text-left shadow-[0_0_20px_rgba(0,255,204,0.15)]">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-2xl font-mono text-[var(--accent-primary)] font-black tracking-wider flex items-center gap-3">
+                <div className="mt-6 sm:mt-8 p-4 sm:p-6 bg-[rgba(0,255,204,0.06)] border-2 border-[var(--accent-primary)] text-left shadow-[0_0_20px_rgba(0,255,204,0.15)]">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                    <span className="text-base sm:text-xl md:text-2xl font-mono text-[var(--accent-primary)] font-black tracking-wider flex items-center gap-2 sm:gap-3">
                       <span>🔁</span> REPETITION MECHANISM: {loopBlock?.label || `LOOP ×${loopBlock?.loopCount || 3}`}
                     </span>
-                    <span className="text-lg font-mono text-[var(--text-muted)] font-bold">
+                    <span className="text-xs sm:text-base font-mono text-[var(--text-muted)] font-bold">
                       {loopBlock?.loopCount || 3} REPETITIONS REQUIRED
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                     {Array.from({ length: loopBlock?.loopCount || 3 }).map((_, idx) => (
                       <div
                         key={idx}
-                        className="bg-[rgba(0,255,204,0.1)] border-2 border-[var(--accent-primary)] rounded-lg p-5 text-center shadow-[0_0_10px_rgba(0,255,204,0.1)]"
+                        className="bg-[rgba(0,255,204,0.1)] border-2 border-[var(--accent-primary)] p-3 sm:p-5 text-center shadow-[0_0_10px_rgba(0,255,204,0.1)]"
                       >
-                        <div className="text-sm font-mono text-[var(--text-muted)] font-bold">CYCLE #{idx + 1}</div>
-                        <div className="text-3xl font-mono font-black text-[var(--accent-primary)] mt-1">
+                        <div className="text-[10px] sm:text-xs font-mono text-[var(--text-muted)] font-bold">CYCLE #{idx + 1}</div>
+                        <div className="text-xl sm:text-3xl font-mono font-black text-[var(--accent-primary)] mt-1">
                           +{loopBlock?.value || 3}
                         </div>
-                        <div className="text-sm font-mono text-[var(--text-secondary)] mt-1">
+                        <div className="text-[10px] sm:text-xs font-mono text-[var(--text-secondary)] mt-1">
                           ACCUMULATOR: {((idx + 1) * (loopBlock?.value || 3))}
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="mt-4 flex justify-between items-center text-sm font-mono text-[var(--text-muted)]">
+                  <div className="mt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs sm:text-sm font-mono text-[var(--text-muted)]">
                     <span className="text-[var(--accent-secondary)]">SERVER EXECUTION: EXPANDING LOOP SEQUENCE</span>
                     <span className="text-[var(--success)] font-bold">TARGET: {Object.entries(targetState).map(([k, v]) => `${k} = ${v}`).join(', ')}</span>
                   </div>
@@ -1180,71 +1191,71 @@ export default function StagePage() {
               )}
 
               {isConditionalVault && (
-                <div className="mt-8 p-6 bg-[rgba(255,180,0,0.06)] border-2 border-[var(--warning)] rounded-xl text-left shadow-[0_0_20px_rgba(255,180,0,0.15)]">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-2xl font-mono text-[var(--warning)] font-black tracking-wider flex items-center gap-3">
+                <div className="mt-6 sm:mt-8 p-4 sm:p-6 bg-[rgba(255,180,0,0.06)] border-2 border-[var(--warning)] text-left shadow-[0_0_20px_rgba(255,180,0,0.15)]">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                    <span className="text-base sm:text-xl md:text-2xl font-mono text-[var(--warning)] font-black tracking-wider flex items-center gap-2 sm:gap-3">
                       <span>🔀</span> DECISION MECHANISM: {ifBlock?.label || 'CONDITIONAL SENSOR BRANCHING'}
                     </span>
-                    <span className="text-lg font-mono text-[var(--text-muted)] font-bold">
+                    <span className="text-xs sm:text-base font-mono text-[var(--text-muted)] font-bold">
                       REACTIVE SENSOR GRID
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6 mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 mt-4">
                     {/* True Path */}
-                    <div className="bg-[rgba(63,185,80,0.08)] border-2 border-[var(--success)] rounded-lg p-5">
-                      <div className="flex justify-between items-center text-sm font-mono font-bold text-[var(--success)]">
+                    <div className="bg-[rgba(63,185,80,0.08)] border-2 border-[var(--success)] p-3 sm:p-5">
+                      <div className="flex justify-between items-center text-xs sm:text-sm font-mono font-bold text-[var(--success)]">
                         <span>✓ TRUE BRANCH (IF {ifBlock?.condition ? `${ifBlock.condition.variable} ${ifBlock.condition.operator} ${ifBlock.condition.value}` : 'MATCH'})</span>
-                        <span className="bg-[rgba(63,185,80,0.2)] px-2 py-0.5 rounded text-xs">ACTION</span>
+                        <span className="bg-[rgba(63,185,80,0.2)] px-2 py-0.5 text-[10px] sm:text-xs">ACTION</span>
                       </div>
-                      <div className="text-2xl font-mono font-black text-white mt-2">
+                      <div className="text-lg sm:text-2xl font-mono font-black text-white mt-2">
                         {ifBlock?.trueBranch?.label || 'DAMPEN LASER'}
                       </div>
-                      <div className="text-xs font-mono text-[var(--text-secondary)] mt-1">
+                      <div className="text-[10px] sm:text-xs font-mono text-[var(--text-secondary)] mt-1">
                         OPERATION: {ifBlock?.trueBranch?.operation || 'SUB'} {ifBlock?.trueBranch?.variable || 'LASER'} {ifBlock?.trueBranch?.value ?? 50}
                       </div>
                     </div>
 
                     {/* False Path */}
-                    <div className="bg-[rgba(0,255,204,0.08)] border-2 border-[var(--accent-primary)] rounded-lg p-5">
-                      <div className="flex justify-between items-center text-sm font-mono font-bold text-[var(--accent-primary)]">
+                    <div className="bg-[rgba(0,255,204,0.08)] border-2 border-[var(--accent-primary)] p-3 sm:p-5">
+                      <div className="flex justify-between items-center text-xs sm:text-sm font-mono font-bold text-[var(--accent-primary)]">
                         <span>✗ FALSE BRANCH (OTHERWISE)</span>
-                        <span className="bg-[rgba(0,255,204,0.2)] px-2 py-0.5 rounded text-xs">FALLBACK</span>
+                        <span className="bg-[rgba(0,255,204,0.2)] px-2 py-0.5 text-[10px] sm:text-xs">FALLBACK</span>
                       </div>
-                      <div className="text-2xl font-mono font-black text-white mt-2">
+                      <div className="text-lg sm:text-2xl font-mono font-black text-white mt-2">
                         {ifBlock?.falseBranch?.label || 'BOOST POWER'}
                       </div>
-                      <div className="text-xs font-mono text-[var(--text-secondary)] mt-1">
+                      <div className="text-[10px] sm:text-xs font-mono text-[var(--text-secondary)] mt-1">
                         OPERATION: {ifBlock?.falseBranch?.operation || 'ADD'} {ifBlock?.falseBranch?.variable || 'LASER'} {ifBlock?.falseBranch?.value ?? 20}
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 flex justify-between items-center text-sm font-mono text-[var(--text-muted)]">
+                  <div className="mt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs sm:text-sm font-mono text-[var(--text-muted)]">
                     <span className="text-[var(--warning)]">EVALUATION: SENSOR-DRIVEN SERVER LOGIC</span>
                     <span className="text-[var(--success)] font-bold">TARGET: {Object.entries(targetState).map(([k, v]) => `${k} = ${v}`).join(', ')}</span>
                   </div>
                 </div>
               )}
 
-              <div className="mt-8 text-2xl text-[var(--text-muted)] font-mono animate-pulse tracking-widest text-center">
+              <div className="mt-6 sm:mt-8 text-sm sm:text-xl md:text-2xl text-[var(--text-muted)] font-mono animate-pulse tracking-widest text-center">
                 AGENTS ARE EXECUTING LOGIC CHAINS...
               </div>
             </div>
 
             {/* Right 4 cols: Live Agent Leaderboard */}
-            <div className="col-span-4 text-left">
+            <div className="lg:col-span-4 w-full min-w-0 text-left">
               <StagePanel title="AGENT STANDINGS">
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2 sm:gap-3">
                   {lb.slice(0, 5).map((entry: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center px-4 py-3 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg text-lg">
-                      <span className="font-mono text-[var(--text-muted)] font-bold mr-3">#{idx + 1}</span>
+                    <div key={idx} className="flex justify-between items-center px-3 sm:px-4 py-2 sm:py-3 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-sm sm:text-lg min-w-0">
+                      <span className="font-mono text-[var(--text-muted)] font-bold mr-2 sm:mr-3 shrink-0">#{idx + 1}</span>
                       <span className="font-bold flex-1 truncate">{entry.name}</span>
-                      <span className="font-mono font-bold text-[var(--accent-primary)]">{entry.score} pts</span>
+                      <span className="font-mono font-bold text-[var(--accent-primary)] shrink-0 ml-2">{entry.score} pts</span>
                     </div>
                   ))}
                   {lb.length === 0 && (
-                    <div className="text-center py-6 font-mono text-sm text-[var(--text-muted)]">
+                    <div className="text-center py-6 font-mono text-xs sm:text-sm text-[var(--text-muted)]">
                       STANDBY FOR FIRST BREACH...
                     </div>
                   )}
@@ -1259,13 +1270,13 @@ export default function StagePage() {
     const challenge = currentGame?.challenges?.find((c: any) => c.id === session.currentChallengeId);
     
     return (
-      <div className="w-full max-w-[90vw] mx-auto">
-        <div className="flex justify-between mb-16 border-b-2 border-[var(--border-subtle)] pb-8 items-end">
-          <div className="text-5xl font-black text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)] uppercase">
-            {currentGame?.template === 'RAPID_FIRE' && <span className="text-[var(--accent-primary)] mr-4">⚡</span>}
+      <div className="w-full max-w-[95vw] mx-auto px-2">
+        <div className="flex flex-col sm:flex-row justify-between mb-6 sm:mb-12 border-b-2 border-[var(--border-subtle)] pb-4 sm:pb-8 items-start sm:items-end gap-2 sm:gap-4">
+          <div className="text-2xl sm:text-4xl md:text-5xl font-black text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)] uppercase truncate">
+            {currentGame?.template === 'RAPID_FIRE' && <span className="text-[var(--accent-primary)] mr-2 sm:mr-4">⚡</span>}
             {currentGame?.name}
           </div>
-          <div className="text-4xl text-[var(--accent-secondary)] font-mono">
+          <div className="text-base sm:text-2xl md:text-4xl text-[var(--accent-secondary)] font-mono shrink-0">
             QUESTION {currentGame?.challenges?.findIndex((c: any) => c.id === session.currentChallengeId) + 1} / {currentGame?.challenges?.length}
           </div>
         </div>
@@ -1273,24 +1284,24 @@ export default function StagePage() {
         {challenge && (
           <>
             <StagePanel>
-              <h1 className="text-7xl font-black mb-16 leading-tight">{challenge.prompt}</h1>
+              <h1 className="text-xl sm:text-3xl md:text-5xl lg:text-7xl font-black mb-6 sm:mb-12 leading-tight break-words">{challenge.prompt}</h1>
               
-              <div className="grid grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 md:gap-8">
                 {challenge.options?.map((opt: string, i: number) => (
-                  <div key={i} className="p-8 text-4xl bg-[var(--bg-elevated)] rounded-xl border-2 border-[var(--border-subtle)] font-sans font-bold flex items-center">
-                    <strong className="text-[var(--accent-primary)] mr-6 font-mono text-5xl">{String.fromCharCode(65 + i)}.</strong> 
-                    {opt}
+                  <div key={i} className="p-3 sm:p-6 md:p-8 text-sm sm:text-xl md:text-3xl lg:text-4xl bg-[var(--bg-elevated)] border-2 border-[var(--border-subtle)] font-sans font-bold flex items-center min-w-0">
+                    <strong className="text-[var(--accent-primary)] mr-3 sm:mr-6 font-mono text-lg sm:text-3xl md:text-5xl shrink-0">{String.fromCharCode(65 + i)}.</strong> 
+                    <span className="break-words">{opt}</span>
                   </div>
                 ))}
               </div>
             </StagePanel>
             
-            <div className="flex justify-between mt-20 items-center">
-              <div className="text-[7rem] font-black font-mono text-[var(--accent-primary)] drop-shadow-[0_0_20px_rgba(0,255,204,0.3)]">
+            <div className="flex flex-col sm:flex-row justify-between mt-6 sm:mt-12 items-center gap-4">
+              <div className="text-4xl sm:text-6xl md:text-7xl lg:text-[clamp(3.5rem,7vw,7rem)] font-black font-mono text-[var(--accent-primary)] drop-shadow-[0_0_20px_rgba(0,255,204,0.3)]">
                 <StageTimer startTime={session.challengeStartTime} timeLimit={challenge.timeLimit} />
               </div>
-              <div className="text-5xl font-mono text-[var(--text-secondary)]">
-                <strong className="text-[var(--accent-primary)] text-[5rem] mr-4">{sessionData.answersCount || 0}</strong> / {playerCount} ANSWERED
+              <div className="text-lg sm:text-3xl md:text-5xl font-mono text-[var(--text-secondary)]">
+                <strong className="text-[var(--accent-primary)] text-2xl sm:text-4xl md:text-[4rem] mr-2 sm:mr-4">{sessionData.answersCount || 0}</strong> / {playerCount} ANSWERED
               </div>
             </div>
           </>
@@ -1306,17 +1317,17 @@ export default function StagePage() {
     const correctIdx = challenge.options?.findIndex((o: string) => o === challenge.answer);
     
     return (
-      <div className="w-full max-w-5xl mx-auto text-center">
-        <h2 className="text-5xl text-[var(--text-muted)] font-mono tracking-widest mb-16">ANSWERS LOCKED</h2>
+      <div className="w-full max-w-5xl mx-auto text-center px-2">
+        <h2 className="text-xl sm:text-3xl md:text-5xl text-[var(--text-muted)] font-mono tracking-widest mb-6 sm:mb-12">ANSWERS LOCKED</h2>
         
         <StagePanel>
-          <h1 className="text-7xl font-black text-[var(--success)] mb-8 drop-shadow-[0_0_15px_rgba(63,185,80,0.4)]">CORRECT ANSWER</h1>
+          <h1 className="text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-black text-[var(--success)] mb-4 sm:mb-8 drop-shadow-[0_0_15px_rgba(63,185,80,0.4)]">CORRECT ANSWER</h1>
           
-          <div className="text-[10rem] font-black font-mono text-[var(--success)] my-12 drop-shadow-[0_0_30px_rgba(63,185,80,0.6)]">
+          <div className="text-5xl sm:text-7xl md:text-9xl lg:text-[10rem] font-black font-mono text-[var(--success)] my-4 sm:my-8 md:my-12 drop-shadow-[0_0_30px_rgba(63,185,80,0.6)]">
             {correctIdx !== -1 ? String.fromCharCode(65 + correctIdx) : 'N/A'}
           </div>
           
-          <div className="text-6xl bg-[rgba(63,185,80,0.15)] border-2 border-[var(--success)] p-12 rounded-xl inline-block font-sans font-bold shadow-[0_0_20px_rgba(63,185,80,0.2)]">
+          <div className="text-lg sm:text-3xl md:text-5xl lg:text-6xl bg-[rgba(63,185,80,0.15)] border-2 border-[var(--success)] p-4 sm:p-8 md:p-12 inline-block font-sans font-bold shadow-[0_0_20px_rgba(63,185,80,0.2)] max-w-full break-words">
             {challenge.answer}
           </div>
         </StagePanel>
@@ -1332,20 +1343,20 @@ export default function StagePage() {
     ];
     
     return (
-      <div className="w-full max-w-5xl mx-auto">
-        <h1 className="text-8xl font-black text-center mb-20 text-white uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">LIVE STANDINGS</h1>
+      <div className="w-full max-w-5xl mx-auto px-2">
+        <h1 className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-black text-center mb-6 sm:mb-12 md:mb-16 text-white uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">LIVE STANDINGS</h1>
         
         <StagePanel>
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-3 sm:gap-6">
             {lb.map((entry: any, idx: number) => (
-              <div key={idx} className={`flex justify-between items-center px-12 py-8 rounded-xl border-2 text-5xl font-bold
+              <div key={idx} className={`flex justify-between items-center px-4 sm:px-8 md:px-12 py-3 sm:py-6 md:py-8 border-2 text-base sm:text-2xl md:text-4xl font-bold min-w-0
                 ${idx === 0 ? 'bg-[rgba(0,255,204,0.1)] border-[var(--accent-primary)] shadow-[0_0_20px_rgba(0,255,204,0.2)]' : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)]'}
               `}>
-                <div className="flex items-center gap-12">
-                  <span className={`w-12 text-center font-black font-mono ${idx === 0 ? 'text-[var(--game-gold)]' : idx === 1 ? 'text-[var(--game-silver)]' : idx === 2 ? 'text-[var(--game-bronze)]' : 'text-[var(--text-muted)]'}`}>{idx + 1}</span>
-                  <span className="font-sans uppercase tracking-wide">{entry.name}</span>
+                <div className="flex items-center gap-3 sm:gap-6 md:gap-12 min-w-0">
+                  <span className={`w-6 sm:w-12 text-center font-black font-mono shrink-0 ${idx === 0 ? 'text-[var(--game-gold)]' : idx === 1 ? 'text-[var(--game-silver)]' : idx === 2 ? 'text-[var(--game-bronze)]' : 'text-[var(--text-muted)]'}`}>{idx + 1}</span>
+                  <span className="font-sans uppercase tracking-wide truncate">{entry.name}</span>
                 </div>
-                <div className="font-mono text-[var(--accent-primary)] drop-shadow-[0_0_10px_rgba(0,255,204,0.4)]">{entry.score}</div>
+                <div className="font-mono text-[var(--accent-primary)] drop-shadow-[0_0_10px_rgba(0,255,204,0.4)] shrink-0 ml-2">{entry.score}</div>
               </div>
             ))}
           </div>
@@ -1361,14 +1372,14 @@ export default function StagePage() {
     ];
     
     return (
-      <div className="text-center">
-        <h2 className="text-5xl text-[var(--text-muted)] mb-12 font-mono tracking-widest">GAME COMPLETE</h2>
-        <div className="text-[8rem] my-16 animate-bounce">🏆</div>
-        <StagePanel className="inline-block px-32 py-16">
-          <h1 className="text-9xl font-black text-[var(--accent-primary)] mb-8 drop-shadow-[0_0_30px_rgba(0,255,204,0.6)] uppercase">
+      <div className="text-center px-2">
+        <h2 className="text-2xl sm:text-4xl md:text-5xl text-[var(--text-muted)] mb-6 sm:mb-12 font-mono tracking-widest">GAME COMPLETE</h2>
+        <div className="text-5xl sm:text-7xl md:text-[8rem] my-6 sm:my-12 animate-bounce">🏆</div>
+        <StagePanel className="inline-block px-6 sm:px-16 md:px-32 py-6 sm:py-16 max-w-full">
+          <h1 className="text-3xl sm:text-6xl md:text-8xl lg:text-9xl font-black text-[var(--accent-primary)] mb-4 sm:mb-8 drop-shadow-[0_0_30px_rgba(0,255,204,0.6)] uppercase break-words">
             {lb[0]?.name || 'WINNER'}
           </h1>
-          <h3 className="text-7xl font-mono text-white">
+          <h3 className="text-xl sm:text-4xl md:text-6xl lg:text-7xl font-mono text-white">
             {lb[0]?.score || 0} POINTS
           </h3>
         </StagePanel>
@@ -1377,13 +1388,13 @@ export default function StagePage() {
   };
 
   const renderPaused = () => (
-    <div className="text-center">
-      <StagePanel className="inline-block border-[var(--error)] shadow-[0_0_30px_rgba(255,51,102,0.3)]">
-        <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-[var(--error)]" />
-        <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-[var(--error)]" />
+    <div className="text-center px-2">
+      <StagePanel className="inline-block border-[var(--error)] shadow-[0_0_30px_rgba(255,51,102,0.3)] max-w-full">
+        <div className="absolute -top-1 -left-1 w-4 sm:w-6 h-4 sm:h-6 border-t-2 sm:border-t-4 border-l-2 sm:border-l-4 border-[var(--error)]" />
+        <div className="absolute -bottom-1 -right-1 w-4 sm:w-6 h-4 sm:h-6 border-b-2 sm:border-b-4 border-r-2 sm:border-r-4 border-[var(--error)]" />
         
-        <h1 className="text-9xl font-black mb-12 text-[var(--error)] drop-shadow-[0_0_20px_rgba(255,51,102,0.5)] uppercase tracking-widest">PAUSED</h1>
-        <h3 className="text-5xl text-[var(--text-muted)] leading-relaxed font-mono">
+        <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-black mb-4 sm:mb-12 text-[var(--error)] drop-shadow-[0_0_20px_rgba(255,51,102,0.5)] uppercase tracking-widest">PAUSED</h1>
+        <h3 className="text-base sm:text-2xl md:text-4xl lg:text-5xl text-[var(--text-muted)] leading-relaxed font-mono">
           PLEASE WAIT<br/>
           GAME MASTER WILL RESUME SHORTLY
         </h3>
@@ -1393,20 +1404,20 @@ export default function StagePage() {
 
   const renderBlank = () => (
     <div className="h-full flex items-center justify-center">
-      <div className="text-7xl tracking-[0.6em] text-[rgba(255,255,255,0.03)] font-black font-mono">
+      <div className="text-3xl sm:text-5xl md:text-7xl tracking-[0.4em] sm:tracking-[0.6em] text-[rgba(255,255,255,0.03)] font-black font-mono">
         TERMINAL
       </div>
     </div>
   );
 
   return (
-    <div className="h-screen w-screen bg-[var(--bg-base)] text-white flex flex-col overflow-hidden scanlines grid-overlay relative">
-      <div className={`absolute top-8 right-8 flex items-center gap-4 text-2xl font-bold font-mono z-50 ${connected ? 'text-[var(--success)]' : 'text-[var(--error)]'}`}>
-        <div className={`w-4 h-4 rounded-full ${connected ? 'bg-[var(--success)] shadow-[0_0_15px_var(--success)]' : 'bg-[var(--error)] shadow-[0_0_15px_var(--error)]'}`} />
+    <div className="min-h-screen w-full bg-[var(--bg-base)] text-white flex flex-col overflow-x-hidden scanlines grid-overlay relative">
+      <div className={`absolute top-3 right-3 sm:top-6 sm:right-6 flex items-center gap-2 sm:gap-3 text-xs sm:text-base md:text-xl font-bold font-mono z-50 ${connected ? 'text-[var(--success)]' : 'text-[var(--error)]'}`}>
+        <div className={`w-2.5 sm:w-4 h-2.5 sm:h-4 rounded-full ${connected ? 'bg-[var(--success)] shadow-[0_0_15px_var(--success)]' : 'bg-[var(--error)] shadow-[0_0_15px_var(--error)]'}`} />
         {connected ? 'LIVE' : 'RECONNECTING'}
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-16 relative z-10 overflow-auto">
+      <div className="flex-1 flex items-center justify-center p-3 sm:p-6 md:p-10 lg:p-16 relative z-10 overflow-x-hidden w-full max-w-full">
         {stageMode === 'LOBBY' && renderLobby()}
         {stageMode === 'ANNOUNCEMENT' && renderAnnouncement()}
         {stageMode === 'COUNTDOWN' && renderCountdown()}

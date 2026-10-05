@@ -551,7 +551,7 @@ registry.register({
 registry.register({
   id: 'ROGUE_SCANNER',
   name: 'Rogue Scanner',
-  description: 'AIERA Telemetry anomaly detection, baseline profiling, and multi-variable correlation forensics.',
+  description: 'CODENEX Telemetry anomaly detection, baseline profiling, and multi-variable correlation forensics.',
   category: 'AI / Forensics',
   version: '1.0.0',
   status: 'AVAILABLE',

@@ -46,15 +46,15 @@ export default function EventsPage() {
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6 sm:mb-8">
           <div>
             <div className="text-[10px] font-bold tracking-[0.3em] text-[var(--term-cyan)] mb-1">// EVENT_MANAGER</div>
-            <h1 className="font-mono font-black text-3xl uppercase tracking-tight text-white">
+            <h1 className="font-mono font-black text-[clamp(1.5rem,5vw,2rem)] uppercase tracking-tight text-white">
               EVENT <span className="text-[var(--term-cyan)]">REGISTRY</span>
             </h1>
             <p className="font-mono text-xs text-[var(--term-text-secondary)] mt-1">MANAGE LIVE SESSIONS AND COMPETITIONS.</p>
           </div>
-          <TerminalButton onClick={() => setIsCreating(!isCreating)} variant="primary" className="flex items-center gap-2">
+          <TerminalButton onClick={() => setIsCreating(!isCreating)} variant="primary" className="flex items-center justify-center gap-2 min-h-[44px] sm:min-h-0">
             <Plus size={14} /> NEW EVENT
           </TerminalButton>
         </div>
@@ -113,17 +113,17 @@ export default function EventsPage() {
                   return (
                     <div
                       key={event.id}
-                      className="flex items-center justify-between p-4 border border-[var(--term-border-faint)] bg-[var(--term-bg-elevated)] hover:border-[var(--term-cyan)] hover:bg-[var(--term-bg-highlight)] cursor-pointer transition-all group"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 border border-[var(--term-border-faint)] bg-[var(--term-bg-elevated)] hover:border-[var(--term-cyan)] hover:bg-[var(--term-bg-highlight)] cursor-pointer transition-all group"
                       onClick={() => navigate(editPath)}
                     >
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono font-bold text-sm uppercase text-white group-hover:text-[var(--term-cyan)] transition-colors">{event.name}</span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className="font-mono font-bold text-sm uppercase text-white group-hover:text-[var(--term-cyan)] transition-colors break-words">{event.name}</span>
                           <TerminalBadge variant={statusVariant(event.status) as any}>{event.status}</TerminalBadge>
                         </div>
-                        <p className="font-mono text-[10px] text-[var(--term-text-muted)]">{event.description || '// NO PARAMETERS SET'}</p>
+                        <p className="font-mono text-[10px] text-[var(--term-text-muted)] break-words">{event.description || '// NO PARAMETERS SET'}</p>
                       </div>
-                      <TerminalButton onClick={(e) => { e.stopPropagation(); navigate(editPath); }} className="text-[9px]">
+                      <TerminalButton onClick={(e) => { e.stopPropagation(); navigate(editPath); }} className="text-[9px] min-h-[40px] sm:min-h-0 self-stretch sm:self-auto">
                         CONFIGURE
                       </TerminalButton>
                     </div>

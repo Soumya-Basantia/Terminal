@@ -48,11 +48,41 @@ export async function ensureAdminUser(): Promise<void> {
           passwordHash,
           role: 'ADMIN',
           approvalStatus: 'APPROVED',
-          name: 'Root Administrator'
+          name: 'Root Administrator',
+          profile: {
+            create: { displayName: 'Root Administrator' }
+          }
         }
       });
       console.log(`🛡️ Initialized singleton Root Administrator account (username: root)`);
     }
+
+    const demoEmail = 'demo@terminal.dev';
+    const demoUser = await prisma.user.upsert({
+      where: { email: demoEmail },
+      update: {
+        username: 'demo_designer',
+        passwordHash: await bcrypt.hash('terminal123', 10),
+        role: 'SUPER_ADMIN',
+        approvalStatus: 'APPROVED',
+        accountStatus: 'ACTIVE',
+        name: 'Demo Designer'
+      },
+      create: {
+        username: 'demo_designer',
+        email: demoEmail,
+        passwordHash: await bcrypt.hash('terminal123', 10),
+        role: 'SUPER_ADMIN',
+        approvalStatus: 'APPROVED',
+        accountStatus: 'ACTIVE',
+        name: 'Demo Designer',
+        profile: {
+          create: { displayName: 'Demo Designer' }
+        }
+      }
+    });
+
+    console.log(`🧪 Ensured demo designer account (email: ${demoUser.email})`);
   } catch (error) {
     console.error('Failed to initialize root administrator user:', error);
   }

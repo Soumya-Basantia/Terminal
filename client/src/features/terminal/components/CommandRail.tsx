@@ -48,7 +48,7 @@ export const CommandRail: React.FC<CommandRailProps> = ({
   return (
     <aside 
       aria-label="Command Manual Rail"
-      className={`h-full flex flex-col bg-[#07090e] border-r border-[#1c2638] font-mono select-none shrink-0 transition-all duration-200 z-10 ${
+      className={`h-full hidden sm:flex flex-col bg-[#07090e] border-r border-[#1c2638] font-mono select-none shrink-0 transition-all duration-200 z-10 ${
         isExpanded ? 'w-48 sm:w-52' : 'w-10 sm:w-11'
       }`}
     >

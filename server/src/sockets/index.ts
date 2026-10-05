@@ -1,9 +1,18 @@
 import { Server, Socket } from 'socket.io';
 import { prisma } from '../lib/prisma';
-import { getSessionState, purgeGameSessionChat } from '../services/sessionService';
+import { deriveStageModeFromStatus, getSessionState, purgeGameSessionChat } from '../services/sessionService';
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+import path from 'path';
 import { checkEventAuthorization } from '../utils/authorization';
-const JWT_SECRET = process.env.JWT_SECRET || 'terminal-secret-change-in-prod';
+
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+const JWT_SECRET: string = process.env.JWT_SECRET || (() => {
+  throw new Error('[SECURITY] JWT_SECRET environment variable is not set. Refusing to start.');
+})();
 
 let globalIo: Server | null = null;
 const userSockets = new Map<string, Set<string>>();
@@ -35,14 +44,25 @@ export function setupSocketHandlers(io: Server): void {
   io.use((socket, next) => {
     const { token, isStage } = socket.handshake.auth;
 
+    // Stage / projector displays connect with { isStage: true } without a student/host token
     if (isStage) {
       socket.data.role = 'STAGE';
+      socket.data.isStageRequest = true;
+      if (token) {
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET) as any;
+          socket.data.userId = decoded.userId;
+        } catch {
+          // Ignore invalid token on public stage viewer
+        }
+      }
       return next();
     }
 
     if (!token) {
       return next(new Error('Authentication error'));
     }
+
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       socket.data.userId = decoded.userId;
@@ -346,21 +366,35 @@ export function setupSocketHandlers(io: Server): void {
     socket.on('host:change_status', async (data: { status: string }) => {
       if (socket.data.role !== 'HOST' || !socket.data.roomCode) return;
       const code = socket.data.roomCode;
-      
+
+      // Strict allowlist — never write arbitrary strings to session.status
+      const VALID_STATUSES = new Set([
+        'LOBBY', 'STARTING', 'ROUND_ACTIVE', 'QUESTION_ACTIVE',
+        'QUESTION_LOCKED', 'RESULTS', 'ENDED', 'FINAL'
+      ]);
+      if (!VALID_STATUSES.has(data.status)) {
+        socket.emit('error', { message: 'Invalid session status' });
+        return;
+      }
+
       try {
         const session = await prisma.session.findUnique({ where: { roomCode: code }, include: { event: true } });
         if (!session) return;
         const isAuthorized = await checkEventAuthorization(session.eventId, socket.data.userId);
         if (!isAuthorized) return;
-        
+
         let newStatus: any = data.status;
         if (newStatus === 'FINAL') newStatus = 'ENDED';
 
+        const nextStageMode = deriveStageModeFromStatus(newStatus, session.stageMode);
         await prisma.session.update({
           where: { roomCode: code },
-          data: { status: newStatus }
+          data: {
+            status: newStatus,
+            ...(session.stageMode === 'LOBBY' ? { stageMode: nextStageMode as any } : {})
+          }
         });
-        
+
         const state = await getSessionState(code);
         io.to(`session:${code}`).emit('session_state_update', state);
       } catch (err) {
@@ -377,6 +411,7 @@ export function setupSocketHandlers(io: Server): void {
       const isAuthorized = await checkEventAuthorization(session.eventId, socket.data.userId);
       if (!isAuthorized) return;
       
+      const nextStageMode = deriveStageModeFromStatus('STARTING', session.stageMode);
       await prisma.session.update({
         where: { roomCode: code },
         data: { 
@@ -384,7 +419,8 @@ export function setupSocketHandlers(io: Server): void {
           currentPosition: data.position,
           currentChallengeId: null,
           currentRun: { increment: 1 },
-          status: 'STARTING'
+          status: 'STARTING',
+          ...(session.stageMode === 'LOBBY' ? { stageMode: nextStageMode as any } : {})
         }
       });
       
@@ -446,12 +482,14 @@ export function setupSocketHandlers(io: Server): void {
       const isAuthorized = await checkEventAuthorization(session.eventId, socket.data.userId);
       if (!isAuthorized) return;
       
+      const nextStageMode = deriveStageModeFromStatus('QUESTION_ACTIVE', session.stageMode);
       await prisma.session.update({
         where: { roomCode: code },
         data: { 
           currentChallengeId: data.challengeId,
           challengeStartTime: new Date(),
-          status: 'QUESTION_ACTIVE'
+          status: 'QUESTION_ACTIVE',
+          ...(session.stageMode === 'LOBBY' ? { stageMode: nextStageMode as any } : {})
         }
       });
       
@@ -470,12 +508,14 @@ export function setupSocketHandlers(io: Server): void {
       const isAuthorized = await checkEventAuthorization(session.eventId, socket.data.userId);
       if (!isAuthorized) return;
       
+      const nextStageMode = deriveStageModeFromStatus('STARTING', session.stageMode);
       await prisma.session.update({
         where: { roomCode: code },
         data: { 
           currentChallengeId: null,
           currentRun: { increment: 1 },
-          status: 'STARTING'
+          status: 'STARTING',
+          ...(session.stageMode === 'LOBBY' ? { stageMode: nextStageMode as any } : {})
         }
       });
       
@@ -523,11 +563,13 @@ export function setupSocketHandlers(io: Server): void {
       const isAuthorized = await checkEventAuthorization(session.eventId, socket.data.userId);
       if (!isAuthorized) return;
       
+      const nextStageMode = deriveStageModeFromStatus('ENDED', session.stageMode);
       await prisma.session.update({
         where: { roomCode: code },
-        data: { 
+        data: {
           status: 'ENDED',
-          endedAt: new Date()
+          endedAt: new Date(),
+          ...(session.stageMode === 'LOBBY' ? { stageMode: nextStageMode as any } : {})
         }
       });
       
@@ -594,20 +636,23 @@ export function setupSocketHandlers(io: Server): void {
         return;
       }
       const code = String(roomCode).toUpperCase();
-      
+      const userId = socket.data.userId;
+
       const session = await prisma.session.findUnique({
         where: { roomCode: code }
       });
-      
+
       if (!session) {
         socket.emit('error', { message: 'Session not found' });
         return;
       }
-      
+
+      // STAGE role joins session room strictly as an observer
       socket.join(`session:${code}`);
+      socket.data.role = 'STAGE';
       socket.data.roomCode = code;
       console.log(`[Stage] Connected to session ${code}`);
-      
+
       const state = await getSessionState(code);
       socket.emit('session_state_update', state);
     });
@@ -617,6 +662,15 @@ export function setupSocketHandlers(io: Server): void {
       if (socket.data.role !== 'HOST' || !socket.data.roomCode) return;
       const code = socket.data.roomCode;
       
+      const VALID_STAGE_MODES = new Set([
+        'LOBBY', 'ANNOUNCEMENT', 'COUNTDOWN', 'QUESTION', 'ANSWER_REVEAL',
+        'LEADERBOARD', 'TEAM_LEADERBOARD', 'FINAL_RESULTS', 'PAUSED', 'BLANK'
+      ]);
+      if (!data?.mode || !VALID_STAGE_MODES.has(data.mode)) {
+        socket.emit('error', { message: 'Invalid stage mode' });
+        return;
+      }
+
       const session = await prisma.session.findUnique({ where: { roomCode: code }, include: { event: true } });
       if (!session) return;
       const isAuthorized = await checkEventAuthorization(session.eventId, socket.data.userId);

@@ -56,13 +56,13 @@ export default function JoinPage() {
                 maxLength={8}
                 required
                 autoFocus
-                className="w-full bg-[var(--term-bg-void)] border border-[var(--term-border-muted)] focus:border-[var(--term-cyan)] px-4 py-4 font-mono text-2xl tracking-widest text-center text-[var(--term-cyan)] uppercase outline-none transition-colors"
+                className="w-full bg-[var(--term-bg-void)] border-2 border-[var(--term-border-muted)] focus:border-[var(--term-cyan)] px-3 py-3 sm:px-4 sm:py-4 font-mono text-[clamp(1.4rem,5vw,2rem)] tracking-widest text-center text-[var(--term-cyan)] uppercase outline-none transition-colors min-h-[48px]"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full py-3 bg-[var(--term-cyan)] text-black font-mono font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-110 active:translate-y-0.5 transition-all shadow-[3px_3px_0_0_#000] hover:shadow-[0_0_20px_var(--term-cyan-glow)]"
+              className="w-full min-h-[48px] py-3 bg-[var(--term-cyan)] text-black font-mono font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-110 active:translate-y-0.5 transition-all shadow-[3px_3px_0_0_#000] hover:shadow-[0_0_20px_var(--term-cyan-glow)] cursor-pointer"
             >
               <span>ENTER SESSION</span>
               <ArrowRight size={15} />

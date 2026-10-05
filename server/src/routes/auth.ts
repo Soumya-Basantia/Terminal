@@ -69,6 +69,28 @@ function generateUsername(input: string, fallback: string): string {
   return cleaned.length >= 2 ? cleaned : fallback;
 }
 
+async function generateUniqueUsername(input: string, fallback: string): Promise<string> {
+  const base = generateUsername(input, fallback);
+  let candidate = base;
+  let attempt = 0;
+
+  while (attempt < 12) {
+    const existing = await prisma.user.findFirst({
+      where: { username: { equals: candidate, mode: 'insensitive' as const } }
+    });
+
+    if (!existing) {
+      return candidate;
+    }
+
+    attempt += 1;
+    const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    candidate = `${base}_${suffix}`;
+  }
+
+  return `${base}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // ── REGISTRATION (STUDENT & GAME MASTER) ──
 // POST /api/auth/register
 router.post('/register', async (req: Request, res: Response): Promise<void> => {
@@ -108,7 +130,9 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     }
 
     const hashed = await bcrypt.hash(password, 10);
-    const finalUsername = username || generateUsername(email.split('@')[0], `gm_${Date.now()}`);
+    const finalUsername = username
+      ? await generateUniqueUsername(username, `gm_${Date.now().toString(36)}`)
+      : await generateUniqueUsername(email.split('@')[0], `gm_${Date.now().toString(36)}`);
 
     const user = await prisma.user.create({
       data: {
@@ -185,8 +209,11 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 
     const hashed = await bcrypt.hash(password, 10);
     // CRITICAL: Username (public handle) must never be derived from USN
-    const finalUsername = (username ? generateUsername(username, '') : '') || 
-                          generateUsername(name.split(' ')[0], generateUsername(email.split('@')[0], `op_${Date.now()}`));
+    const baseUsername = username ? generateUsername(username, '') : '';
+    const finalUsername = baseUsername || await generateUniqueUsername(
+      name.split(' ')[0] || email.split('@')[0],
+      generateUsername(email.split('@')[0], `op_${Date.now().toString(36)}`)
+    );
 
     const user = await prisma.user.create({
       data: {
@@ -254,10 +281,9 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
   }
 
   const hashed = await bcrypt.hash(password, 10);
-  const requestedRole = (parsed.data.role || '').toUpperCase();
-  let role: 'PLAYER' | 'GAME_MASTER' | 'SUPER_ADMIN' | 'ADMIN' = 'PLAYER';
-  if (requestedRole === 'SUPER_ADMIN' || requestedRole === 'ADMIN') role = 'ADMIN';
-  else if (requestedRole === 'GAME_MASTER' || requestedRole === 'HOST' || requestedRole === 'DESIGNER') role = 'GAME_MASTER';
+  // SECURITY: role is always PLAYER for legacy registration.
+  // Elevated roles (GAME_MASTER, ADMIN) must use dedicated endpoints.
+  const role: 'PLAYER' = 'PLAYER';
 
   const user = await prisma.user.create({
     data: {

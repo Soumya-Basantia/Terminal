@@ -129,24 +129,27 @@ export const TerminalInput: React.FC<TerminalInputProps> = ({
   };
 
   return (
-    <div className="flex items-center justify-between text-zinc-100 font-mono w-full text-xs sm:text-sm bg-[#06080e] border border-[#1c2638] focus-within:border-cyan-500/80 px-2.5 py-1.5 transition-colors">
-      <div className="flex items-center flex-1 min-w-0 mr-2">
+    <div className="flex items-center justify-between text-zinc-100 font-mono w-full text-xs sm:text-sm bg-[#06080e] border border-[#1c2638] focus-within:border-cyan-500/80 px-2 sm:px-2.5 py-1.5 min-h-[44px] transition-colors">
+      <div className="flex items-center flex-1 min-w-0 mr-1 sm:mr-2">
         {/* Live Status indicator */}
-        <div className="flex items-center mr-2.5 shrink-0 select-none">
+        <div className="flex items-center mr-1.5 sm:mr-2.5 shrink-0 select-none">
           {isExecuting ? (
             <TerminalSprite animation="processing" size={14} className="mr-1 shrink-0" />
           ) : (
-            <span className="flex items-center gap-1 px-1.5 py-0.2 bg-emerald-950/70 border border-emerald-500/60 text-emerald-400 font-black text-[9px] tracking-wider uppercase">
+            <span className="flex items-center gap-1 px-1 sm:px-1.5 py-0.5 bg-emerald-950/70 border border-emerald-500/60 text-emerald-400 font-black text-[8px] sm:text-[9px] tracking-wider uppercase">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              LIVE
+              <span className="hidden xs:inline sm:inline">LIVE</span>
             </span>
           )}
         </div>
 
-        {/* Strong Prompt */}
-        <div className="flex items-center mr-2 shrink-0 select-none">
-          <span className="text-cyan-400 font-bold whitespace-nowrap">
+        {/* Strong Prompt: Compact $ on phone, full on tablet/desktop */}
+        <div className="flex items-center mr-1 sm:mr-2 shrink-0 select-none">
+          <span className="text-cyan-400 font-bold whitespace-nowrap hidden sm:inline text-xs sm:text-sm">
             {username}@terminal:~$
+          </span>
+          <span className="text-cyan-400 font-bold whitespace-nowrap sm:hidden text-xs">
+            $&nbsp;
           </span>
         </div>
 
@@ -161,7 +164,7 @@ export const TerminalInput: React.FC<TerminalInputProps> = ({
             className="w-full bg-transparent border-none outline-none text-zinc-100 focus:ring-0 p-0 shadow-none caret-cyan-400 font-mono text-xs sm:text-sm"
             spellCheck={false}
             autoComplete="off"
-            placeholder={isExecuting ? 'Processing command...' : (placeholder || '')}
+            placeholder={isExecuting ? 'Processing...' : (placeholder || 'type command...')}
             disabled={isExecuting}
             autoFocus
           />
@@ -171,7 +174,7 @@ export const TerminalInput: React.FC<TerminalInputProps> = ({
         </div>
       </div>
 
-      {/* Return / Enter indicator */}
+      {/* Return / Enter indicator with minimum 40px touch area */}
       <button
         type="button"
         onClick={() => {
@@ -183,7 +186,7 @@ export const TerminalInput: React.FC<TerminalInputProps> = ({
             onCommand(input);
           }
         }}
-        className="px-1.5 py-0.5 bg-[#0f1422] hover:bg-cyan-500 hover:text-black border border-[#1c2638] text-zinc-400 text-[10px] font-bold shrink-0 transition-colors cursor-pointer select-none"
+        className="px-2.5 py-1.5 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center bg-[#0f1422] hover:bg-cyan-500 hover:text-black active:bg-cyan-400 border border-[#1c2638] text-zinc-300 text-xs font-bold shrink-0 transition-colors cursor-pointer select-none"
         title="Execute Command (Enter)"
       >
         ↵

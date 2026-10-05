@@ -63,11 +63,11 @@ export default function NewGamePage() {
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
 
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <div className="text-[10px] font-bold tracking-[0.3em] text-[var(--term-cyan)] mb-1">
             // STEP {step} OF 2
           </div>
-          <h1 className="font-mono font-black text-3xl uppercase tracking-tight text-white">
+          <h1 className="font-mono font-black text-[clamp(1.5rem,5vw,2rem)] uppercase tracking-tight text-white">
             INITIALIZE <span className="text-[var(--term-cyan)]">GAME</span>
           </h1>
           <p className="font-mono text-xs text-[var(--term-text-secondary)] mt-1">CONFIGURE NEW GAME INSTANCE.</p>
@@ -82,7 +82,7 @@ export default function NewGamePage() {
               <div className="px-5 py-3 border-b border-[var(--term-border-faint)]">
                 <span className="text-[9px] font-bold tracking-[0.3em] text-[var(--term-cyan)]">// CHOOSE_TEMPLATE</span>
               </div>
-              <div className="p-5">
+              <div className="p-4 sm:p-5">
                 <p className="font-mono text-xs text-[var(--term-text-secondary)] mb-5">WHAT KIND OF GAME DO YOU WANT TO CREATE?</p>
 
                 <div className="flex flex-col gap-3 mb-6">
@@ -90,15 +90,15 @@ export default function NewGamePage() {
                     <div
                       key={t.id}
                       onClick={() => setTemplate(t.id as any)}
-                      className={`p-4 border cursor-pointer flex items-start gap-4 transition-all ${
+                      className={`p-3.5 sm:p-4 border cursor-pointer flex items-start gap-3 sm:gap-4 transition-all ${
                         template === t.id
                           ? 'border-[var(--term-cyan)] bg-[var(--term-bg-elevated)]'
                           : 'border-[var(--term-border-faint)] bg-[var(--term-bg-void)] hover:border-[var(--term-border-muted)] hover:bg-[var(--term-bg-elevated)]'
                       }`}
                     >
                       <div style={{ color: t.color, flexShrink: 0, marginTop: 2 }}>{t.icon}</div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
                           <span className="font-mono font-black text-base uppercase tracking-tight text-white">{t.name}</span>
                           {t.recommended && (
                             <TerminalBadge variant="cyan">RECOMMENDED</TerminalBadge>
@@ -110,11 +110,11 @@ export default function NewGamePage() {
                   ))}
                 </div>
 
-                <div className="flex gap-3">
-                  <TerminalButton onClick={() => navigate(clubId ? `/clubs/${clubId}` : '/dashboard')} variant="secondary" className="flex-1">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <TerminalButton onClick={() => navigate(clubId ? `/clubs/${clubId}` : '/dashboard')} variant="secondary" className="flex-1 min-h-[44px]">
                     CANCEL
                   </TerminalButton>
-                  <TerminalButton onClick={() => setStep(2)} variant="primary" className="flex-1">
+                  <TerminalButton onClick={() => setStep(2)} variant="primary" className="flex-1 min-h-[44px]">
                     CONTINUE <ArrowRight size={13} />
                   </TerminalButton>
                 </div>
@@ -127,7 +127,7 @@ export default function NewGamePage() {
               <div className="px-5 py-3 border-b border-[var(--term-border-faint)]">
                 <span className="text-[9px] font-bold tracking-[0.3em] text-[var(--term-cyan)]">// GAME_PARAMETERS</span>
               </div>
-              <div className="p-5">
+              <div className="p-4 sm:p-5">
                 <p className="font-mono text-xs text-[var(--term-text-secondary)] mb-5">CONFIGURE BASIC INSTANCE SETTINGS.</p>
 
                 <div className="flex flex-col gap-5">
@@ -145,7 +145,7 @@ export default function NewGamePage() {
                     value={formData.description}
                     onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
                   />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <TerminalInput
                       label="MAX PLAYERS"
                       type="number"
@@ -154,13 +154,13 @@ export default function NewGamePage() {
                       value={String(formData.maxPlayers)}
                       onChange={e => setFormData(p => ({ ...p, maxPlayers: Number(e.target.value) }))}
                     />
-                    <div className="flex items-end pb-0.5 gap-3">
+                    <div className="flex items-center sm:items-end pb-1 gap-3 min-h-[44px]">
                       <input
                         type="checkbox"
                         id="teams"
                         checked={formData.teamsEnabled}
                         onChange={e => setFormData(p => ({ ...p, teamsEnabled: e.target.checked }))}
-                        className="w-4 h-4"
+                        className="w-4 h-4 cursor-pointer"
                         style={{ accentColor: 'var(--term-cyan)' }}
                       />
                       <label htmlFor="teams" className="font-mono text-xs font-bold text-[var(--term-text-secondary)] uppercase cursor-pointer">
@@ -176,11 +176,11 @@ export default function NewGamePage() {
                   </div>
                 )}
 
-                <div className="flex gap-3 mt-6">
-                  <TerminalButton onClick={() => setStep(1)} variant="secondary" className="flex-1">
+                <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                  <TerminalButton onClick={() => setStep(1)} variant="secondary" className="flex-1 min-h-[44px]">
                     BACK
                   </TerminalButton>
-                  <TerminalButton onClick={handleCreate} variant="primary" className="flex-[2]" disabled={creating}>
+                  <TerminalButton onClick={handleCreate} variant="primary" className="flex-1 sm:flex-[2] min-h-[44px]" disabled={creating}>
                     {creating ? 'INITIALIZING...' : 'CREATE GAME INSTANCE'}
                   </TerminalButton>
                 </div>

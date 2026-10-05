@@ -643,7 +643,7 @@ export default function ThresholdChallenge({ challenge, sessionCode, onSubmitted
           </div>
 
           {/* 4 Quadrants Grid */}
-          <div className="grid grid-cols-2 gap-2 text-center text-[11px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-center text-[11px]">
             
             {/* TRUE POSITIVES (TP) */}
             <div className="bg-[#0b1017] border-2 border-cyan-500/40 p-2.5 rounded-none flex flex-col justify-between">

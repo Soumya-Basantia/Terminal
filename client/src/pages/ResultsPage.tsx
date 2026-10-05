@@ -46,8 +46,8 @@ export default function ResultsPage() {
             <span className="text-[9px] tracking-[0.3em] text-[var(--term-cyan)] font-bold uppercase">TERMINAL</span>
           </div>
           <div className="flex items-center justify-center gap-3 mb-3">
-            <Trophy size={32} className="text-[var(--term-yellow)]" />
-            <h1 className="font-mono font-black text-3xl uppercase tracking-tight text-white">
+            <Trophy size={32} className="text-[var(--term-yellow)] shrink-0" />
+            <h1 className="font-mono font-black text-[clamp(1.5rem,5vw,2rem)] uppercase tracking-tight text-white">
               FINAL RESULTS
             </h1>
           </div>
@@ -58,20 +58,20 @@ export default function ResultsPage() {
 
         {/* My Result */}
         {myEntry && (
-          <div className="mb-6 bg-[var(--term-bg-surface)] border border-[var(--term-cyan)] shadow-[4px_4px_0_0_var(--term-cyan)] p-5 relative">
+          <div className="mb-6 bg-[var(--term-bg-surface)] border border-[var(--term-cyan)] shadow-[4px_4px_0_0_var(--term-cyan)] p-4 sm:p-5 relative">
             <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-[var(--term-cyan)]" />
             <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-[var(--term-cyan)]" />
 
             <div className="text-[9px] tracking-[0.3em] text-[var(--term-cyan)] font-bold uppercase mb-3">
               // YOUR_RESULT
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white font-bold text-base">{player?.displayName || player?.username}</p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-white font-bold text-base truncate">{player?.displayName || player?.username}</p>
                 <p className="text-[var(--term-text-muted)] text-xs mt-0.5">RANK #{myEntry.rank}</p>
               </div>
-              <div className="text-right">
-                <div className="font-mono font-black text-4xl text-[var(--term-cyan)]">{myEntry.score}</div>
+              <div className="text-right shrink-0">
+                <div className="font-mono font-black text-[clamp(1.8rem,6vw,2.5rem)] text-[var(--term-cyan)]">{myEntry.score}</div>
                 <div className="text-[9px] text-[var(--term-text-muted)] uppercase tracking-widest">PTS</div>
               </div>
             </div>
@@ -101,7 +101,7 @@ export default function ResultsPage() {
                 return (
                   <div
                     key={entry.id}
-                    className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                    className={`flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 transition-colors ${
                       isMe ? 'bg-[rgba(0,255,204,0.06)]' : 'hover:bg-[var(--term-bg-elevated)]'
                     }`}
                   >
@@ -111,11 +111,11 @@ export default function ResultsPage() {
                     >
                       {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`}
                     </span>
-                    <span className={`flex-1 text-sm font-bold ${isMe ? 'text-[var(--term-cyan)]' : 'text-[var(--term-text-primary)]'}`}>
+                    <span className={`flex-1 text-xs sm:text-sm font-bold truncate ${isMe ? 'text-[var(--term-cyan)]' : 'text-[var(--term-text-primary)]'}`}>
                       {entry.displayName || entry.name}
-                      {isMe && <span className="text-[9px] ml-2 opacity-60 font-normal">← you</span>}
+                      {isMe && <span className="text-[9px] ml-1.5 opacity-60 font-normal">← you</span>}
                     </span>
-                    <span className="font-mono font-black text-sm" style={{ color: rankColor }}>
+                    <span className="font-mono font-black text-xs sm:text-sm shrink-0" style={{ color: rankColor }}>
                       {entry.score} <span className="text-[9px] font-normal text-[var(--term-text-muted)]">pts</span>
                     </span>
                   </div>
@@ -126,16 +126,16 @@ export default function ResultsPage() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={() => navigate('/join')}
-            className="flex-1 py-3 bg-[var(--term-cyan)] text-black font-mono font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-110 transition-all shadow-[3px_3px_0_0_#000]"
+            className="flex-1 min-h-[44px] py-3 bg-[var(--term-cyan)] text-black font-mono font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-110 transition-all shadow-[3px_3px_0_0_#000] cursor-pointer"
           >
             <RotateCcw size={13} /> PLAY AGAIN
           </button>
           <button
             onClick={() => { localStorage.removeItem('terminal_player'); navigate('/'); }}
-            className="flex-1 py-3 bg-transparent border border-[var(--term-border-muted)] text-[var(--term-text-secondary)] font-mono font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:border-[var(--term-cyan)] hover:text-white transition-all"
+            className="flex-1 min-h-[44px] py-3 bg-transparent border border-[var(--term-border-muted)] text-[var(--term-text-secondary)] font-mono font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:border-[var(--term-cyan)] hover:text-white transition-all cursor-pointer"
           >
             <Home size={13} /> EXIT
           </button>

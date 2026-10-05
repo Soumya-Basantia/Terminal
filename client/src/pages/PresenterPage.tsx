@@ -143,7 +143,7 @@ export default function PresenterPage() {
   // ── LOBBY SCREEN ───────────────────────────────────────
   if (screen === 'lobby') {
     return (
-      <div className="min-h-screen bg-[var(--term-bg-void)] text-white flex flex-col items-center justify-center p-6 md:p-12 relative font-mono select-none">
+      <div className="min-h-screen bg-[var(--term-bg-void)] text-white flex flex-col items-center justify-center p-4 sm:p-6 md:p-12 relative font-mono select-none overflow-x-hidden">
         {/* Ambient Grid & Scanlines */}
         <div className="fixed inset-0 pointer-events-none term-grid-lines -z-10" />
         <div className="fixed inset-0 pointer-events-none opacity-40 bg-[radial-gradient(ellipse_at_center,rgba(0,255,204,0.08)_0%,transparent_75%)] -z-10" />
@@ -151,41 +151,41 @@ export default function PresenterPage() {
         <div className="w-full max-w-4xl flex flex-col items-center text-center animate-fade-in-scale">
           {/* Logo & Platform Tag */}
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 border-2 border-[var(--term-cyan)] bg-[var(--term-bg-elevated)] shadow-[4px_4px_0_0_var(--term-cyan)]">
-              <Terminal size={36} className="text-[var(--term-cyan)]" />
+            <div className="p-2 sm:p-3 border-2 border-[var(--term-cyan)] bg-[var(--term-bg-elevated)] shadow-[4px_4px_0_0_var(--term-cyan)]">
+              <Terminal size={32} className="text-[var(--term-cyan)]" />
             </div>
             <div className="text-left">
-              <div className="text-xs font-bold tracking-[0.3em] text-[var(--term-cyan)]">LIVE TOURNAMENT STAGE</div>
-              <div className="text-3xl font-black tracking-tighter text-white">TERMINAL</div>
+              <div className="text-[10px] sm:text-xs font-bold tracking-[0.3em] text-[var(--term-cyan)]">LIVE TOURNAMENT STAGE</div>
+              <div className="text-2xl sm:text-3xl font-black tracking-tighter text-white">TERMINAL</div>
             </div>
           </div>
 
           {/* Game Title */}
-          <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tight text-white mb-8 max-w-3xl leading-tight">
+          <h1 className="text-[clamp(1.6rem,5vw,3.75rem)] font-black uppercase tracking-tight text-white mb-6 sm:mb-8 max-w-3xl leading-tight break-words">
             {gameName || 'STANDBY FOR OPERATIONAL EVENT'}
           </h1>
 
           {/* Join Code Giant Display */}
-          <div className="relative mb-10 w-full max-w-lg">
+          <div className="relative mb-8 sm:mb-10 w-full max-w-lg">
             <div className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-[var(--term-cyan)]" />
             <div className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-[var(--term-cyan)]" />
             <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-[var(--term-cyan)]" />
             <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-[var(--term-cyan)]" />
 
-            <div className="bg-[var(--term-bg-surface)] border-2 border-[var(--term-cyan)] p-6 md:p-8 shadow-[8px_8px_0_0_#000]">
-              <div className="text-xs font-bold uppercase tracking-[0.25em] text-[var(--term-text-secondary)] mb-2">
+            <div className="bg-[var(--term-bg-surface)] border-2 border-[var(--term-cyan)] p-5 sm:p-8 shadow-[8px_8px_0_0_#000]">
+              <div className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.25em] text-[var(--term-text-secondary)] mb-2">
                 JOIN WITH ROOM CODE:
               </div>
-              <div className="text-6xl md:text-8xl font-black text-[var(--term-cyan)] tracking-[0.15em] drop-shadow-[0_0_20px_var(--term-cyan-glow-strong)]">
+              <div className="text-[clamp(2.5rem,8vw,5.5rem)] font-black text-[var(--term-cyan)] tracking-[0.1em] sm:tracking-[0.15em] drop-shadow-[0_0_20px_var(--term-cyan-glow-strong)] truncate">
                 {code}
               </div>
             </div>
           </div>
 
           {/* Enrolled Players Indicator */}
-          <div className="inline-flex items-center gap-3 px-6 py-3 bg-[var(--term-bg-elevated)] border border-[var(--term-border-muted)] shadow-[4px_4px_0_0_#000]">
-            <Users size={24} className="text-[var(--term-cyan)]" />
-            <span className="text-xl md:text-2xl font-bold">
+          <div className="inline-flex items-center gap-3 px-4 sm:px-6 py-2.5 sm:py-3 bg-[var(--term-bg-elevated)] border border-[var(--term-border-muted)] shadow-[4px_4px_0_0_#000]">
+            <Users size={20} className="text-[var(--term-cyan)]" />
+            <span className="text-base sm:text-2xl font-bold">
               <strong className="text-[var(--term-green)]">{playerCount}</strong> PLAYERS ENROLLED
             </span>
             <span className="w-2.5 h-2.5 rounded-none bg-[var(--term-green)] animate-pulse" />
@@ -199,7 +199,7 @@ export default function PresenterPage() {
   if (screen === 'challenge' && challenge) {
     const options = challenge.options || [];
     return (
-      <div className="min-h-screen bg-[var(--term-bg-void)] text-white p-6 md:p-12 flex flex-col font-mono select-none relative">
+      <div className="min-h-screen bg-[var(--term-bg-void)] text-white p-4 sm:p-6 md:p-12 flex flex-col font-mono select-none relative overflow-x-hidden">
         <div className="fixed inset-0 pointer-events-none term-grid-lines -z-10" />
 
         {/* Broadcast banner */}
@@ -217,19 +217,19 @@ export default function PresenterPage() {
             <div className="text-xs text-[var(--term-text-muted)] uppercase tracking-wider">
               {challenge.roundTitle || 'ACTIVE STAGE ROUND'}
             </div>
-            <div className="text-xl md:text-2xl font-black text-white mt-0.5">
+            <div className="text-lg sm:text-xl md:text-2xl font-black text-white mt-0.5">
               CHALLENGE {challenge.challengeIndex + 1} OF {challenge.totalChallenges}
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 sm:gap-6">
             <div className="text-right">
-              <span className="text-xs text-[var(--term-text-muted)] block uppercase">REWARD</span>
-              <span className="text-xl font-bold text-[var(--term-cyan)]">{challenge.points} PTS</span>
+              <span className="text-[10px] sm:text-xs text-[var(--term-text-muted)] block uppercase">REWARD</span>
+              <span className="text-base sm:text-xl font-bold text-[var(--term-cyan)]">{challenge.points} PTS</span>
             </div>
 
             <div 
-              className="text-5xl md:text-6xl font-black px-5 py-2 bg-[var(--term-bg-surface)] border-2 border-[var(--term-border-muted)] min-w-[120px] text-center shadow-[4px_4px_0_0_#000]"
+              className="text-3xl sm:text-5xl md:text-6xl font-black px-3 sm:px-5 py-1.5 sm:py-2 bg-[var(--term-bg-surface)] border-2 border-[var(--term-border-muted)] min-w-[80px] sm:min-w-[120px] text-center shadow-[4px_4px_0_0_#000]"
               style={{ color: timerColor, borderColor: timerColor }}
             >
               {secondsLeft !== null ? secondsLeft : '—'}
@@ -239,13 +239,13 @@ export default function PresenterPage() {
 
         {/* Question Prompt */}
         <div className="flex-1 flex flex-col items-center justify-center max-w-5xl mx-auto w-full">
-          <div className="w-full bg-[var(--term-bg-surface)] border-2 border-[var(--term-cyan)] p-8 md:p-12 shadow-[8px_8px_0_0_#000] relative mb-8">
+          <div className="w-full bg-[var(--term-bg-surface)] border-2 border-[var(--term-cyan)] p-5 sm:p-8 md:p-12 shadow-[8px_8px_0_0_#000] relative mb-6 sm:mb-8">
             <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-white" />
             <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-white" />
             <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-white" />
             <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-white" />
 
-            <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-center text-white leading-snug">
+            <h1 className="text-[clamp(1.2rem,4vw,2.75rem)] font-black text-center text-white leading-snug break-words">
               {challenge.prompt}
             </h1>
           </div>
@@ -286,7 +286,7 @@ export default function PresenterPage() {
     };
 
     return (
-      <div className="min-h-screen bg-[var(--term-bg-void)] text-white p-6 md:p-12 flex flex-col font-mono select-none relative">
+      <div className="min-h-screen bg-[var(--term-bg-void)] text-white p-4 sm:p-6 md:p-12 flex flex-col font-mono select-none relative overflow-x-hidden">
         <div className="fixed inset-0 pointer-events-none term-grid-lines -z-10" />
 
         <div className="text-center mb-6">
@@ -295,7 +295,7 @@ export default function PresenterPage() {
           </TerminalBadge>
         </div>
 
-        <h1 className="text-2xl md:text-4xl font-black text-center text-white max-w-4xl mx-auto mb-8">
+        <h1 className="text-[clamp(1.2rem,3.5vw,2.25rem)] font-black text-center text-white max-w-4xl mx-auto mb-6 sm:mb-8 break-words">
           {challenge.prompt}
         </h1>
 
@@ -305,20 +305,20 @@ export default function PresenterPage() {
             return (
               <div 
                 key={i} 
-                className={`p-5 flex items-center gap-4 border-2 transition-all ${
+                className={`p-3.5 sm:p-5 flex items-center gap-3 sm:gap-4 border-2 transition-all ${
                   correct 
                     ? 'bg-emerald-950/40 border-[var(--term-green)] shadow-[0_0_20px_var(--term-green-glow)]' 
                     : 'bg-[var(--term-bg-surface)] border-[var(--term-border-subtle)] opacity-40'
                 }`}
               >
                 <div 
-                  className={`w-12 h-12 flex items-center justify-center font-black text-xl shrink-0 ${
+                  className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center font-black text-lg sm:text-xl shrink-0 ${
                     correct ? 'bg-[var(--term-green)] text-black' : 'bg-[var(--term-bg-elevated)] text-[var(--term-text-muted)]'
                   }`}
                 >
                   {correct ? '✓' : OPTION_LABELS[i]}
                 </div>
-                <span className={`text-lg md:text-xl font-bold ${correct ? 'text-[var(--term-green)]' : 'text-zinc-400'}`}>
+                <span className={`text-base sm:text-lg md:text-xl font-bold break-words ${correct ? 'text-[var(--term-green)]' : 'text-zinc-400'}`}>
                   {opt}
                 </span>
               </div>
@@ -327,14 +327,14 @@ export default function PresenterPage() {
         </div>
 
         {explanation && (
-          <div className="max-w-4xl mx-auto w-full p-4 bg-[var(--term-bg-surface)] border border-[var(--term-cyan)] text-center text-zinc-300 text-sm">
+          <div className="max-w-4xl mx-auto w-full p-4 bg-[var(--term-bg-surface)] border border-[var(--term-cyan)] text-center text-zinc-300 text-xs sm:text-sm">
             <span className="text-[var(--term-cyan)] font-bold mr-2">// EXPLANATION:</span>
             <span>{explanation}</span>
           </div>
         )}
 
         {stats && (
-          <div className="text-center mt-6 text-sm text-[var(--term-text-secondary)]">
+          <div className="text-center mt-6 text-xs sm:text-sm text-[var(--term-text-secondary)]">
             <strong className="text-[var(--term-cyan)]">{stats.submissionCount}</strong> SUBMISSIONS RECORDED •{' '}
             <strong className="text-[var(--term-green)]">{stats.correctCount}</strong> ACCURATE
           </div>
@@ -346,16 +346,16 @@ export default function PresenterPage() {
   // ── LEADERBOARD SCREEN ─────────────────────────────────
   if (screen === 'leaderboard') {
     return (
-      <div className="min-h-screen bg-[var(--term-bg-void)] text-white p-6 md:p-12 flex flex-col items-center font-mono select-none relative">
+      <div className="min-h-screen bg-[var(--term-bg-void)] text-white p-4 sm:p-6 md:p-12 flex flex-col items-center font-mono select-none relative overflow-x-hidden">
         <div className="fixed inset-0 pointer-events-none term-grid-lines -z-10" />
 
         <div className="text-center mb-8">
-          <Trophy size={48} className="text-[var(--term-yellow)] mx-auto mb-3 drop-shadow-[0_0_12px_var(--term-yellow-glow)]" />
-          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight">
+          <Trophy size={40} className="text-[var(--term-yellow)] mx-auto mb-3 drop-shadow-[0_0_12px_var(--term-yellow-glow)] shrink-0" />
+          <h1 className="text-[clamp(1.75rem,5vw,3rem)] font-black uppercase tracking-tight">
             STAGE LEADERBOARD
           </h1>
           {roundEnded && (
-            <p className="text-sm text-[var(--term-cyan)] mt-2 uppercase tracking-wider">{roundEnded}</p>
+            <p className="text-xs sm:text-sm text-[var(--term-cyan)] mt-2 uppercase tracking-wider">{roundEnded}</p>
           )}
         </div>
 

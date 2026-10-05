@@ -289,7 +289,7 @@ export default function LoginPage() {
             <div className="space-y-1.5">
               <div className="relative inline-block max-w-full">
                 <h1 
-                  className="text-4xl sm:text-5xl md:text-6xl xl:text-7xl font-black font-['Orbitron',sans-serif] leading-tight select-none uppercase tracking-normal sm:tracking-tight"
+                  className="text-[clamp(2.2rem,6.5vw,4.5rem)] font-black font-['Orbitron',sans-serif] leading-tight select-none uppercase tracking-normal sm:tracking-tight"
                   style={{
                     background: 'linear-gradient(180deg, #00E5FF 0%, #ffffff 45%, #FF2BD6 100%)',
                     WebkitBackgroundClip: 'text',
@@ -300,8 +300,8 @@ export default function LoginPage() {
                   TERMINAL
                 </h1>
                 {/* Decorative Pixel Glitch Blocks */}
-                <div className="absolute -top-1 -right-2 w-7 h-2 bg-[#FF2BD6] rounded-xs shadow-[2px_2px_0px_#000]" />
-                <div className="absolute bottom-2 -left-2 w-5 h-1.5 bg-[#00E5FF] rounded-xs shadow-[1px_1px_0px_#000]" />
+                <div className="absolute -top-1 -right-2 w-7 h-2 bg-[#FF2BD6] shadow-[2px_2px_0px_#000]" />
+                <div className="absolute bottom-2 -left-2 w-5 h-1.5 bg-[#00E5FF] shadow-[1px_1px_0px_#000]" />
               </div>
 
               {/* Tagline Subtitle */}
@@ -326,41 +326,41 @@ export default function LoginPage() {
             </p>
 
             {/* 4 Feature Blocks (Neo-Brutalist Chunky Cards) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 max-w-2xl pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 max-w-2xl pt-1">
               {/* PLAY */}
-              <div className="group bg-[#0c1017]/95 hover:bg-[#111722] border-2 border-[#00E5FF] p-3 rounded-sm shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#00E5FF] transition-all duration-150">
-                <div className="w-8 h-8 rounded-sm bg-[#00E5FF]/15 border border-[#00E5FF]/50 flex items-center justify-center text-[#00E5FF] mb-2 group-hover:scale-105 transition-transform">
-                  <Gamepad2 className="w-4 h-4" />
+              <div className="group bg-[#0c1017]/95 hover:bg-[#111722] border-2 border-[#00E5FF] p-2.5 sm:p-3 shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#00E5FF] transition-all duration-150 min-w-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#00E5FF]/15 border border-[#00E5FF]/50 flex items-center justify-center text-[#00E5FF] mb-1.5 sm:mb-2 group-hover:scale-105 transition-transform">
+                  <Gamepad2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <h2 className="text-xs font-black tracking-wider text-[#00E5FF] font-['Orbitron',sans-serif]">PLAY</h2>
-                <p className="text-[9px] font-mono text-[#8b99aa] uppercase leading-tight mt-0.5">INTERACTIVE TECH GAMES</p>
+                <h2 className="text-xs font-black tracking-wider text-[#00E5FF] font-['Orbitron',sans-serif] truncate">PLAY</h2>
+                <p className="text-[8.5px] sm:text-[9px] font-mono text-[#8b99aa] uppercase leading-tight mt-0.5 line-clamp-2">INTERACTIVE TECH GAMES</p>
               </div>
 
               {/* LEARN */}
-              <div className="group bg-[#0c1017]/95 hover:bg-[#111722] border-2 border-[#8B5CF6] p-3 rounded-sm shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#8B5CF6] transition-all duration-150">
-                <div className="w-8 h-8 rounded-sm bg-[#8B5CF6]/15 border border-[#8B5CF6]/50 flex items-center justify-center text-[#8B5CF6] mb-2 group-hover:scale-105 transition-transform">
-                  <Brain className="w-4 h-4" />
+              <div className="group bg-[#0c1017]/95 hover:bg-[#111722] border-2 border-[#8B5CF6] p-2.5 sm:p-3 shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#8B5CF6] transition-all duration-150 min-w-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#8B5CF6]/15 border border-[#8B5CF6]/50 flex items-center justify-center text-[#8B5CF6] mb-1.5 sm:mb-2 group-hover:scale-105 transition-transform">
+                  <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <h2 className="text-xs font-black tracking-wider text-[#8B5CF6] font-['Orbitron',sans-serif]">LEARN</h2>
-                <p className="text-[9px] font-mono text-[#8b99aa] uppercase leading-tight mt-0.5">BUILD REAL SKILLS</p>
+                <h2 className="text-xs font-black tracking-wider text-[#8B5CF6] font-['Orbitron',sans-serif] truncate">LEARN</h2>
+                <p className="text-[8.5px] sm:text-[9px] font-mono text-[#8b99aa] uppercase leading-tight mt-0.5 line-clamp-2">BUILD REAL SKILLS</p>
               </div>
 
               {/* COMPETE */}
-              <div className="group bg-[#0c1017]/95 hover:bg-[#111722] border-2 border-[#FF2BD6] p-3 rounded-sm shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#FF2BD6] transition-all duration-150">
-                <div className="w-8 h-8 rounded-sm bg-[#FF2BD6]/15 border border-[#FF2BD6]/50 flex items-center justify-center text-[#FF2BD6] mb-2 group-hover:scale-105 transition-transform">
-                  <Trophy className="w-4 h-4" />
+              <div className="group bg-[#0c1017]/95 hover:bg-[#111722] border-2 border-[#FF2BD6] p-2.5 sm:p-3 shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#FF2BD6] transition-all duration-150 min-w-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#FF2BD6]/15 border border-[#FF2BD6]/50 flex items-center justify-center text-[#FF2BD6] mb-1.5 sm:mb-2 group-hover:scale-105 transition-transform">
+                  <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <h2 className="text-xs font-black tracking-wider text-[#FF2BD6] font-['Orbitron',sans-serif]">COMPETE</h2>
-                <p className="text-[9px] font-mono text-[#8b99aa] uppercase leading-tight mt-0.5">LIVE EVENTS &amp; BOARDS</p>
+                <h2 className="text-xs font-black tracking-wider text-[#FF2BD6] font-['Orbitron',sans-serif] truncate">COMPETE</h2>
+                <p className="text-[8.5px] sm:text-[9px] font-mono text-[#8b99aa] uppercase leading-tight mt-0.5 line-clamp-2">LIVE EVENTS &amp; BOARDS</p>
               </div>
 
               {/* CONNECT */}
-              <div className="group bg-[#0c1017]/95 hover:bg-[#111722] border-2 border-[#FFB000] p-3 rounded-sm shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#FFB000] transition-all duration-150">
-                <div className="w-8 h-8 rounded-sm bg-[#FFB000]/15 border border-[#FFB000]/50 flex items-center justify-center text-[#FFB000] mb-2 group-hover:scale-105 transition-transform">
-                  <Users className="w-4 h-4" />
+              <div className="group bg-[#0c1017]/95 hover:bg-[#111722] border-2 border-[#FFB000] p-2.5 sm:p-3 shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#FFB000] transition-all duration-150 min-w-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#FFB000]/15 border border-[#FFB000]/50 flex items-center justify-center text-[#FFB000] mb-1.5 sm:mb-2 group-hover:scale-105 transition-transform">
+                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <h2 className="text-xs font-black tracking-wider text-[#FFB000] font-['Orbitron',sans-serif]">CONNECT</h2>
-                <p className="text-[9px] font-mono text-[#8b99aa] uppercase leading-tight mt-0.5">TEAMS &amp; CLUBS</p>
+                <h2 className="text-xs font-black tracking-wider text-[#FFB000] font-['Orbitron',sans-serif] truncate">CONNECT</h2>
+                <p className="text-[8.5px] sm:text-[9px] font-mono text-[#8b99aa] uppercase leading-tight mt-0.5 line-clamp-2">TEAMS &amp; CLUBS</p>
               </div>
             </div>
 
@@ -386,7 +386,7 @@ export default function LoginPage() {
             <div className="flex items-stretch gap-2.5 sm:gap-3 w-full max-w-[530px]">
 
               {/* ── Main Auth Console Panel ───────────────────────── */}
-              <div className="relative flex-1 bg-[#0b0f17]/95 border-2 sm:border-[3px] border-[#222d3d] rounded-md shadow-[6px_6px_0px_#000000] p-5 sm:p-7 backdrop-blur-xl">
+              <div className="relative flex-1 bg-[#0b0f17]/95 border-2 sm:border-[3px] border-[#222d3d] rounded-none shadow-[6px_6px_0px_#000000] p-4 sm:p-7 backdrop-blur-xl">
 
                 {/* Decorative Chamfered Corner Brackets */}
                 <div className="absolute -top-2 -left-2 w-5 h-5 border-t-[3px] border-l-[3px] border-[#00E5FF] pointer-events-none" />
@@ -397,11 +397,11 @@ export default function LoginPage() {
                 {/* Top Tabs & Telemetry Header */}
                 <div className="flex items-center justify-between pb-4 border-b border-[#1c2433]">
                   {/* Mode Tabs */}
-                  <div className="flex items-center gap-1.5 bg-[#06080d] p-1 border border-[#222c3d] rounded-xs">
+                  <div className="flex items-center gap-1.5 bg-[#06080d] p-1 border border-[#222c3d] rounded-none">
                     <button
                       type="button"
                       onClick={() => switchMode('login')}
-                      className={`flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-xs font-mono font-black uppercase transition-all duration-150 cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-3.5 sm:px-5 py-2.5 min-h-[44px] text-xs font-mono font-black uppercase transition-all duration-150 cursor-pointer ${
                         mode === 'login'
                           ? 'bg-[#00E5FF] text-[#07080d] shadow-[2px_2px_0px_#000] border border-black'
                           : 'text-[#8b99aa] hover:text-white hover:bg-[#121721]'
@@ -413,7 +413,7 @@ export default function LoginPage() {
                     <button
                       type="button"
                       onClick={() => switchMode('register')}
-                      className={`flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-xs font-mono font-black uppercase transition-all duration-150 cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-3.5 sm:px-5 py-2.5 min-h-[44px] text-xs font-mono font-black uppercase transition-all duration-150 cursor-pointer ${
                         mode === 'register'
                           ? 'bg-[#FF2BD6] text-black shadow-[2px_2px_0px_#000] border border-black'
                           : 'text-[#8b99aa] hover:text-white hover:bg-[#121721]'

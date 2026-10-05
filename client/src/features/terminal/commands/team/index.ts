@@ -437,16 +437,17 @@ export const collabCommand: CommandDefinition = {
                 `CAMPUS DIRECTORY (${directory.length} OPERATIVES)`
               ),
               React.createElement('div', { className: 'space-y-1' },
-                directory.map((u: any) =>
-                  React.createElement('div', { key: u.id, className: 'flex items-center justify-between text-[11px]' },
+                directory.map((u: any, index: number) => {
+                  const key = u.handle || u.username || u.id || `user-${index}`;
+                  return React.createElement('div', { key, className: 'flex items-center justify-between text-[11px]' },
                     React.createElement('div', { className: 'flex items-center gap-2' },
                       React.createElement('span', { className: u.isOnline ? 'text-emerald-400' : 'text-zinc-600' }, '●'),
                       React.createElement('span', { className: 'text-zinc-300 font-bold' }, u.handle),
                       React.createElement('span', { className: 'text-zinc-500' }, `— ${u.name}`)
                     ),
                     React.createElement('span', { className: 'text-cyan-400 font-mono text-[10px]' }, `collab add ${u.handle}`)
-                  )
-                )
+                  );
+                })
               )
             )
           ) : null,

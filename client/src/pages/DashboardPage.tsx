@@ -14,16 +14,15 @@ function DesignerLayout({ children, clubId, clubName }: { children: React.ReactN
   return (
     <div className="min-h-screen flex flex-col bg-[var(--term-bg-void)] font-mono">
       {/* ── CYBERCORE TOP NAV ── */}
-      <header className="bg-[var(--term-bg-surface)] border-b border-[var(--term-border-muted)] sticky top:0 z-50"
-        style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 20, top: 0, position: 'sticky' }}>
+      <header className="bg-[var(--term-bg-surface)] border-b border-[var(--term-border-muted)] sticky top-0 z-50 min-h-[56px] px-3 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2.5">
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div className="flex items-center gap-2 shrink-0">
           <div className="p-1.5 border border-[var(--term-cyan)] bg-[var(--term-bg-elevated)] shadow-[2px_2px_0_0_var(--term-cyan)]">
             <Terminal size={14} className="text-[var(--term-cyan)]" />
           </div>
           <span className="font-mono font-black text-lg tracking-tighter text-white">TERMINAL</span>
           {clubName && (
-            <span className="font-mono text-xs font-bold px-2 py-0.5 border border-[var(--term-border-muted)] text-[var(--term-cyan)] bg-[var(--term-bg-elevated)]">
+            <span className="font-mono text-xs font-bold px-2 py-0.5 border border-[var(--term-border-muted)] text-[var(--term-cyan)] bg-[var(--term-bg-elevated)] truncate max-w-[120px] sm:max-w-none">
               {clubName}
             </span>
           )}
@@ -31,39 +30,39 @@ function DesignerLayout({ children, clubId, clubName }: { children: React.ReactN
 
         {/* Nav Links */}
         {clubId && (
-          <nav style={{ display: 'flex', gap: 2 }}>
+          <nav className="flex items-center gap-1 sm:gap-2">
             <Link
               to={`/clubs/${clubId}`}
-              className="px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase text-[var(--term-text-secondary)] hover:text-[var(--term-cyan)] hover:bg-[var(--term-bg-elevated)] transition-colors"
+              className="px-2.5 sm:px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase text-[var(--term-text-secondary)] hover:text-[var(--term-cyan)] hover:bg-[var(--term-bg-elevated)] transition-colors"
             >DASHBOARD</Link>
             <Link
               to={`/clubs/${clubId}/events`}
-              className="px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase text-[var(--term-text-secondary)] hover:text-[var(--term-cyan)] hover:bg-[var(--term-bg-elevated)] transition-colors"
+              className="px-2.5 sm:px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase text-[var(--term-text-secondary)] hover:text-[var(--term-cyan)] hover:bg-[var(--term-bg-elevated)] transition-colors"
             >EVENTS</Link>
           </nav>
         )}
 
         {/* Spacer */}
-        <div style={{ flex: 1 }} />
+        <div className="flex-1 hidden md:block" />
 
         {/* Right Side */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link to="/clubs" className="text-[10px] font-bold tracking-widest uppercase text-[var(--term-text-muted)] hover:text-[var(--term-cyan)] transition-colors">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <Link to="/clubs" className="text-[10px] font-bold tracking-widest uppercase text-[var(--term-text-muted)] hover:text-[var(--term-cyan)] transition-colors hidden sm:inline">
             CHANGE CLUB
           </Link>
-          <div className="flex items-center gap-2 px-3 py-1 border border-[var(--term-border-faint)] bg-[var(--term-bg-elevated)]">
-            <Cpu size={10} className="text-[var(--term-cyan)]" />
-            <span className="text-[10px] font-bold text-[var(--term-cyan)] uppercase tracking-widest">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 border border-[var(--term-border-faint)] bg-[var(--term-bg-elevated)]">
+            <Cpu size={10} className="text-[var(--term-cyan)] shrink-0" />
+            <span className="text-[10px] font-bold text-[var(--term-cyan)] uppercase tracking-widest truncate max-w-[90px] sm:max-w-none">
               {((user as any)?.username || user?.name || user?.email || 'OPERATOR').split('@')[0].toUpperCase()}
             </span>
           </div>
-          <BrutalistButton onClick={logout} variant="danger" className="text-[10px] py-1 px-3">
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><LogOut size={11} /> LOGOUT</span>
+          <BrutalistButton onClick={logout} variant="danger" className="text-[10px] py-1 px-2.5 sm:px-3 min-h-[32px]">
+            <span className="flex items-center gap-1"><LogOut size={11} /> <span className="hidden xs:inline">LOGOUT</span></span>
           </BrutalistButton>
         </div>
       </header>
 
-      <main style={{ flex: 1, padding: 28 }}>
+      <main className="flex-1 p-3.5 sm:p-6 md:p-7 max-w-full overflow-x-hidden">
         {children}
       </main>
     </div>
@@ -172,27 +171,27 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-8 flex flex-col gap-5">
 
             {/* Quick Actions */}
             <BrutalistPanel>
               <div className="px-5 py-3 border-b border-[var(--term-border-faint)]">
                 <span className="text-[9px] font-bold tracking-[0.3em] text-[var(--term-cyan)]">// QUICK_ACTIONS</span>
               </div>
-              <div className="p-5">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              <div className="p-4 sm:p-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <BrutalistButton
                     onClick={() => navigate(`/clubs/${clubId}/games/new`)}
                     variant="primary"
-                    className="py-5 flex-col gap-2 text-xs"
+                    className="py-4 sm:py-5 flex-col gap-2 text-xs min-h-[48px]"
                   >
                     <Plus size={20} />
                     <span>NEW GAME</span>
                   </BrutalistButton>
                   <BrutalistButton
                     onClick={() => navigate(`/clubs/${clubId}/events`)}
-                    className="py-5 flex-col gap-2 text-xs"
+                    className="py-4 sm:py-5 flex-col gap-2 text-xs min-h-[48px]"
                   >
                     <Play size={20} className="text-[var(--term-cyan)]" />
                     <span>MANAGE EVENTS</span>
@@ -206,9 +205,9 @@ export default function DashboardPage() {
               <div className="px-5 py-3 border-b border-[var(--term-border-faint)]">
                 <span className="text-[9px] font-bold tracking-[0.3em] text-[var(--term-cyan)]">// RECENT_GAMES</span>
               </div>
-              <div className="p-5">
+              <div className="p-4 sm:p-5">
                 {gamesLoading ? (
-                  <div style={{ display: 'grid', gap: 10 }}>
+                  <div className="grid gap-2.5">
                     {[1, 2].map(i => <div key={i} className="h-14 bg-[var(--term-bg-elevated)] border border-[var(--term-border-faint)] animate-pulse" />)}
                   </div>
                 ) : games.length === 0 ? (
@@ -217,7 +216,7 @@ export default function DashboardPage() {
                     <p className="font-mono text-xs text-[var(--term-text-muted)]">// NO GAMES DETECTED IN DATABASE</p>
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gap: 10 }}>
+                  <div className="grid gap-2.5">
                     {games.slice(0, 5).map(game => (
                       <GameRow key={game.id} game={game} clubId={clubId!} />
                     ))}
@@ -228,25 +227,25 @@ export default function DashboardPage() {
           </div>
 
           {/* Right sidebar — Club Stats */}
-          <div>
+          <div className="lg:col-span-4">
             <BrutalistPanel>
               <div className="px-5 py-3 border-b border-[var(--term-border-faint)]">
                 <span className="text-[9px] font-bold tracking-[0.3em] text-[var(--term-cyan)]">// CLUB_STATS</span>
               </div>
-              <div className="p-5 flex flex-col gap-5">
+              <div className="p-4 sm:p-5 flex flex-col gap-5">
                 <div>
                   <div className="font-mono text-[9px] font-bold tracking-widest text-[var(--term-text-muted)] mb-1">TOTAL EVENTS</div>
-                  <div className="font-mono font-black text-4xl text-[var(--term-blue)]">{events.length}</div>
+                  <div className="font-mono font-black text-3xl sm:text-4xl text-[var(--term-blue)]">{events.length}</div>
                 </div>
                 <div className="h-px bg-[var(--term-border-faint)]" />
                 <div>
                   <div className="font-mono text-[9px] font-bold tracking-widest text-[var(--term-text-muted)] mb-1">PUBLISHED GAMES</div>
-                  <div className="font-mono font-black text-4xl text-[var(--term-cyan)]">{publishedGames.length}</div>
+                  <div className="font-mono font-black text-3xl sm:text-4xl text-[var(--term-cyan)]">{publishedGames.length}</div>
                 </div>
                 <div className="h-px bg-[var(--term-border-faint)]" />
                 <div>
                   <div className="font-mono text-[9px] font-bold tracking-widest text-[var(--term-text-muted)] mb-1">TOTAL QUESTIONS</div>
-                  <div className="font-mono font-black text-4xl text-[var(--term-yellow)]">{totalQuestions}</div>
+                  <div className="font-mono font-black text-3xl sm:text-4xl text-[var(--term-yellow)]">{totalQuestions}</div>
                 </div>
               </div>
             </BrutalistPanel>
