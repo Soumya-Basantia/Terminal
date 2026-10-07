@@ -5,7 +5,7 @@ import api from '../lib/api';
 import { DesignerLayout } from './DashboardPage';
 import { Play, Save, ChevronUp, ChevronDown, Trash2, Plus } from 'lucide-react';
 import type { Game } from '../types';
-import { TerminalInput, TerminalButton, TerminalBadge } from '../components/ui';
+import { TerminalInput, TerminalButton, TerminalBadge, TerminalBackButton } from '../components/ui';
 
 export default function EventEditorPage() {
   const { id, clubId } = useParams<{ id: string, clubId?: string }>();
@@ -106,6 +106,14 @@ export default function EventEditorPage() {
   return (
     <DesignerLayout clubId={clubId} clubName={currentClub?.name}>
       <div className="max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
+        {/* Navigation Back Control */}
+        <div className="lg:col-span-12 mb-1">
+          <TerminalBackButton
+            to={clubId ? `/clubs/${clubId}/events` : '/gm?tab=events'}
+            hasUnsavedChanges={Boolean(event && (name !== event.name || description !== (event.description || '') || mode !== event.mode || status !== event.status))}
+            unsavedMessage="You have unsaved changes in this event. Discard and return to events list?"
+          />
+        </div>
 
         {/* Left Column */}
         <div className="flex flex-col gap-5 lg:col-span-8 min-w-0">

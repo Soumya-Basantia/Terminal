@@ -4,13 +4,28 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { generateSessionCode } from '../utils/sessionCode';
 import { getSessionState, purgeGameSessionChat } from '../services/sessionService';
 import { SessionStatus } from '@prisma/client';
-import { checkEventAuthorization } from '../utils/authorization';
+import { checkEventAuthorization, checkGameAuthorization } from '../utils/authorization';
 import { registry, Validator, ValidationContext } from '../engine';
 import { validateChallengeAnswer } from '../engine/Validator';
+import { validateQuestionTypeSemantics } from './games';
+import { calculateSessionScores } from '../services/scoringService';
+import {
+  hostGameForGameMaster,
+  preflightGameForHosting,
+  freezeGameSnapshot,
+  applySessionTransition,
+  startQuestion,
+  lockQuestion,
+  finalizeSession,
+  canTransition,
+  writeAudit,
+  getQuestionTiming,
+  getChallengeForLiveSession,
+} from '../services/sessionLifecycle';
 
 const router = Router();
 
-// POST /api/sessions — create a new session for an event (Game Master)
+// POST /api/sessions — create a new session for an event or game (Game Master)
 router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({ where: { id: req.userId! } });
   if (!user) {
@@ -18,6 +33,10 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
     return;
   }
 
+  if (user.role !== 'GAME_MASTER' && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+    res.status(403).json({ error: 'Forbidden: Game Master authorization required' });
+    return;
+  }
 
   if (user.role === 'GAME_MASTER' && user.approvalStatus !== 'APPROVED') {
     res.status(403).json({
@@ -29,15 +48,61 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
     return;
   }
 
-  const { eventId } = req.body;
-  if (!eventId) {
-    res.status(400).json({ error: 'eventId is required' });
+  const { eventId, gameId } = req.body;
+  if (!eventId && !gameId) {
+    res.status(400).json({ error: 'Either eventId or gameId is required' });
     return;
   }
 
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, status: 'PUBLISHED' },
-    include: { games: { orderBy: { position: 'asc' } } }
+  // ── GAME HOST PATH (primary): pre-flight + immutable snapshot + idempotent host ──
+  if (gameId) {
+    try {
+      // Ownership: the GM must be authorized to manage this game
+      const gameAuth = await prisma.game.findUnique({ where: { id: String(gameId) } });
+      if (!gameAuth) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+      }
+      const isAuthorized = await checkGameAuthorization(gameAuth.id, req.userId!);
+      if (!isAuthorized) {
+        res.status(403).json({ error: 'Forbidden: Club Admin or Game Designer access required' });
+        return;
+      }
+
+      const result = await hostGameForGameMaster(req.userId!, String(gameId));
+      const session = result.session;
+
+      // Publish the underlying game only after it has PASSED pre-flight.
+      if (result.created && session.currentGame?.status !== 'PUBLISHED') {
+        await prisma.game.update({ where: { id: session.currentGameId! }, data: { status: 'PUBLISHED' } });
+      }
+
+      res.status(result.created ? 201 : 200).json({
+        session: {
+          ...session,
+          code: session.roomCode, // Support both code and roomCode
+          reused: result.reused,
+        },
+      });
+      return;
+    } catch (err: any) {
+      if (err.code === 'PREFLIGHT_FAILED') {
+        res.status(400).json({
+          error: 'GAME CANNOT BE HOSTED',
+          code: 'PREFLIGHT_FAILED',
+          preflight: err.preflight,
+        });
+        return;
+      }
+      res.status(err.status || 500).json({ error: err.message || 'Failed to host game' });
+      return;
+    }
+  }
+
+  // ── EVENT HOST PATH (legacy launch-event flow) ─────────────────────────────
+  let event: any = await prisma.event.findFirst({
+    where: { id: String(eventId), status: 'PUBLISHED' },
+    include: { games: { include: { game: { include: { challenges: { orderBy: { position: 'asc' } } } } }, orderBy: { position: 'asc' } } },
   });
 
   if (!event) {
@@ -49,6 +114,18 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
   if (!isAuthorized) {
     res.status(403).json({ error: 'Forbidden: Club Admin or Creator access required' });
     return;
+  }
+
+  const targetGame = event.games.length > 0 ? event.games[0].game : null;
+  if (targetGame) {
+    const preflight = await preflightGameForHosting(targetGame);
+    if (!preflight.ok) {
+      res.status(400).json({ error: 'GAME CANNOT BE HOSTED', code: 'PREFLIGHT_FAILED', preflight });
+      return;
+    }
+    if (targetGame.status !== 'PUBLISHED') {
+      await prisma.game.update({ where: { id: targetGame.id }, data: { status: 'PUBLISHED' } });
+    }
   }
 
   // Generate unique room code
@@ -63,22 +140,32 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
     }
   } while (await prisma.session.findUnique({ where: { roomCode } }));
 
-  const firstGameId = event.games.length > 0 ? event.games[0].gameId : null;
+  const snapshotData = targetGame ? freezeGameSnapshot(targetGame) : null;
 
   const session = await prisma.session.create({
     data: {
       roomCode,
       eventId: event.id,
       status: 'LOBBY',
-      currentGameId: firstGameId,
-      currentPosition: 0
+      currentGameId: targetGame?.id || null,
+      currentPosition: 0,
+      currentRun: 0,
+      gmId: req.userId!,
+      sequence: 1,
+      ...(snapshotData ? { snapshot: snapshotData.snapshot as any, snapshotVersion: snapshotData.snapshotVersion } : {}),
     },
     include: {
-      event: true
+      event: true,
+      currentGame: true
     },
   });
 
-  res.status(201).json({ session });
+  res.status(201).json({
+    session: {
+      ...session,
+      code: session.roomCode // Support both code and roomCode
+    }
+  });
 });
 
 // POST /api/sessions/join — student joins a session
@@ -103,19 +190,42 @@ router.post('/join', authenticate, async (req: AuthRequest, res: Response): Prom
     return;
   }
 
-  if (session.status !== 'LOBBY' && session.status !== 'STARTING' && session.status !== 'ROUND_ACTIVE') {
-    res.status(403).json({ error: 'This room is no longer accepting players.' });
-    return;
+  // Late-join policy (server-authoritative):
+  //  - EXISTING members may always re-attach (refresh / reconnect) except when ENDED.
+  //  - NEW members may join during the lobby / round, or later when the game
+  //    explicitly allows late join (allowLateJoin).
+  const existingMembership = await prisma.sessionPlayer.findUnique({
+    where: { sessionId_userId: { sessionId: session.id, userId: req.userId! } },
+  });
+  const alreadyMember = !!existingMembership;
+
+  if (!alreadyMember) {
+    let allowLate = true;
+    if (session.currentGameId) {
+      const g = await prisma.game.findUnique({ where: { id: session.currentGameId }, select: { allowLateJoin: true } });
+      allowLate = g?.allowLateJoin !== false;
+    }
+    const openStatuses = ['LOBBY', 'STARTING', 'ROUND_ACTIVE'];
+    const lateStatuses = ['QUESTION_ACTIVE', 'QUESTION_LOCKED', 'QUESTION_RESULTS', 'RESULTS'];
+    const canJoinNow = openStatuses.includes(session.status) || (allowLate && lateStatuses.includes(session.status));
+    if (!canJoinNow) {
+      res.status(403).json({ error: 'This room is no longer accepting players.' });
+      return;
+    }
   }
+
+  const teamMembership = await prisma.teamMember.findFirst({ where: { userId: req.userId! } });
+  const teamId = teamMembership?.teamId || null;
 
   const sessionPlayer = await prisma.sessionPlayer.upsert({
     where: {
       sessionId_userId: { sessionId: session.id, userId: req.userId! }
     },
-    update: { status: 'ACTIVE' },
+    update: { status: 'ACTIVE', ...(teamId ? { teamId } : {}) },
     create: {
       sessionId: session.id,
-      userId: req.userId!
+      userId: req.userId!,
+      ...(teamId ? { teamId } : {})
     }
   });
 
@@ -139,9 +249,127 @@ router.get('/:roomCode', async (req: Request, res: Response): Promise<void> => {
   res.json(state);
 });
 
+// GET /api/sessions/:roomCode/host — host control-room authoritative load
+// Authenticated, GM-only. Verifies ownership so the host page never shows a
+// blank screen with silent 403s and can always distinguish
+// LOADING / SESSION NOT FOUND / UNAUTHORIZED / LIVE states.
+router.get('/:roomCode/host', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const roomCode = String(req.params.roomCode).toUpperCase();
+
+  const session = await prisma.session.findUnique({
+    where: { roomCode },
+    include: { event: true },
+  });
+
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+
+  // Re-resolve the controlling GM's identity from the session record when
+  // possible; fall back to event authorization for legacy sessions.
+  let authorized = false;
+  if (session.gmId) {
+    authorized = session.gmId === req.userId;
+  }
+  if (!authorized) {
+    const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+    const canControlLegacy = (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN');
+    authorized = canControlLegacy || await checkEventAuthorization(session.eventId, req.userId!);
+  }
+
+  if (!authorized) {
+    res.status(403).json({ error: 'Forbidden: You are not authorized to control this session' });
+    return;
+  }
+
+  const snapshot: any = session.snapshot;
+  const timing = getQuestionTiming(session);
+
+  res.json({
+    session: {
+      id: session.id,
+      roomCode: session.roomCode,
+      status: session.status,
+      stageMode: session.stageMode,
+      eventId: session.eventId,
+      currentGameId: session.currentGameId,
+      currentChallengeId: session.currentChallengeId,
+      currentPosition: session.currentPosition,
+      currentRun: session.currentRun,
+      sequence: session.sequence,
+      startedAt: session.startedAt,
+      endedAt: session.endedAt,
+      challengeStartTime: session.challengeStartTime,
+      questionEndsAt: session.questionEndsAt,
+      snapshotVersion: session.snapshotVersion,
+      hasSnapshot: Boolean(session.snapshot),
+    },
+    event: { id: session.event.id, name: session.event.name, mode: session.event.mode },
+    game: snapshot
+      ? {
+          id: snapshot.gameId,
+          name: snapshot.gameName,
+          template: snapshot.template,
+          teamsEnabled: snapshot.teamsEnabled,
+          maxTeamSize: snapshot.maxTeamSize,
+          speedBonus: snapshot.speedBonus,
+          allowLateJoin: snapshot.allowLateJoin,
+          leaderboardVisibility: snapshot.leaderboardVisibility,
+          config: snapshot.config,
+          challengeCount: Array.isArray(snapshot.challenges) ? snapshot.challenges.length : 0,
+          // Authoritative frozen questions (public-safe — answers stripped)
+          challenges: (Array.isArray(snapshot.challenges) ? snapshot.challenges : []).map((c: any) => {
+            const { answer, correct, ...safe } = c;
+            const config = c.config ? { ...c.config } : {};
+            delete config.answer;
+            delete config.correct;
+            delete config.solutionPatch;
+            return { ...safe, config };
+          }),
+        }
+      : null,
+    questionTiming: timing,
+    canControl: true,
+    gmHandle: `${(await prisma.user.findUnique({ where: { id: session.gmId || session.event.creatorId } }))?.username || 'GM'}@terminal`,
+  });
+});
+
+// GET /api/sessions/:roomCode/leaderboard — get authoritative live/final leaderboard
+router.get('/:roomCode/leaderboard', async (req: Request, res: Response): Promise<void> => {
+  const roomCode = String(req.params.roomCode).toUpperCase();
+  const session = await prisma.session.findUnique({
+    where: { roomCode }
+  });
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+  const scores = await calculateSessionScores(session.id);
+  res.json({
+    leaderboard: scores.leaderboard,
+    teamLeaderboard: scores.teams,
+    individualLeaderboard: scores.individuals,
+    timeBonusConfig: scores.timeBonusConfig
+  });
+});
+
 // PUT /api/sessions/:id/status — Game Master updates status
+// Hardened: EVERY status change routes through the lifecycle gateway
+// (canTransition + sequence bump + audit + atomic persist + broadcast).
 router.put('/:id/status', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const { status } = req.body;
+
+  if (!status || typeof status !== 'string') {
+    res.status(400).json({ error: 'status is required' });
+    return;
+  }
+  const target = String(status).toUpperCase() as SessionStatus;
+  const VALID = new Set<SessionStatus>(['LOBBY', 'STARTING', 'ROUND_ACTIVE', 'ROUND_LOCKED', 'QUESTION_ACTIVE', 'QUESTION_LOCKED', 'QUESTION_RESULTS', 'RESULTS', 'ENDED']);
+  if (!VALID.has(target)) {
+    res.status(400).json({ error: `Invalid session status: ${status}` });
+    return;
+  }
 
   const session = await prisma.session.findUnique({
     where: { id: req.params.id as string },
@@ -159,25 +387,41 @@ router.put('/:id/status', authenticate, async (req: AuthRequest, res: Response):
     return;
   }
 
-  const updated = await prisma.session.update({
-    where: { id: req.params.id as string },
-    data: { status: status as SessionStatus }
-  });
-
-  const io = req.app.get('io');
-  if (status === 'ENDED') {
-    await purgeGameSessionChat(updated.id, updated.roomCode, io);
+  // IDOR/BOLA-style misuse: ensure the caller actually controls the session's gm context.
+  if (session.gmId && session.gmId !== req.userId) {
+    const actorUser = await prisma.user.findUnique({ where: { id: req.userId! } });
+    if (actorUser?.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
   }
 
-  if (io) {
-    const updatedState = await getSessionState(updated.roomCode);
-    io.to(`session:${updated.roomCode}`).emit('session_state_update', updatedState);
+  const io = req.app.get('io');
+  const actor = await prisma.user.findUnique({ where: { id: req.userId! } });
+
+  if (target === 'ENDED') {
+    // Terminal transition — idempotent, purges chat, audits.
+    const result = await finalizeSession(session, { io, actorUsername: actor?.username, actorId: actor?.id });
+    res.json({ session: result.session });
+    return;
+  }
+
+  const updated = await applySessionTransition(session, target, {
+    io,
+    actorUsername: actor?.username,
+    actorId: actor?.id,
+  });
+
+  if (!updated) {
+    res.status(409).json({ error: `Invalid transition ${session.status} → ${target}`, currentStatus: session.status });
+    return;
   }
 
   res.json({ session: updated });
 });
 
 // PUT /api/sessions/:id/advance — advance to next game in sequence
+// Hardened: routes through the lifecycle gateway (no raw status writes).
 router.put('/:id/advance', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const session = await prisma.session.findUnique({
     where: { id: req.params.id as string },
@@ -211,23 +455,42 @@ router.put('/:id/advance', authenticate, async (req: AuthRequest, res: Response)
   const nextGame = session.event.games.find(g => g.position === nextPos);
   const isEnding = !nextGame;
 
-  const updated = await prisma.session.update({
-    where: { id: req.params.id as string },
-    data: { 
-      currentPosition: nextPos,
-      currentGameId: nextGame ? nextGame.gameId : null,
-      status: nextGame ? 'STARTING' : 'ENDED'
-    }
-  });
+  // ADVANCE is only legal from states where moving to the next game makes
+  // sense (LOBBY / RESULTS / STARTING). Mid-question states are rejected —
+  // the host must lock/finish the current question first. This keeps the
+  // END branch of advance consistent with the next-game branch: both pass
+  // through the lifecycle gateway.
+  const canStart = session.status === 'LOBBY' || canTransition(session.status, 'STARTING');
 
   const io = req.app.get('io');
-  if (isEnding) {
-    await purgeGameSessionChat(updated.id, updated.roomCode, io);
+  const actor = await prisma.user.findUnique({ where: { id: req.userId! } });
+
+  if (!canStart) {
+    res.status(409).json({ error: `Cannot advance from status ${session.status}`, currentStatus: session.status });
+    return;
   }
 
-  if (io) {
-    const updatedState = await getSessionState(updated.roomCode);
-    io.to(`session:${updated.roomCode}`).emit('session_state_update', updatedState);
+  if (isEnding) {
+    const result = await finalizeSession(session, { io, actorUsername: actor?.username, actorId: actor?.id });
+    res.json({ session: result.session });
+    return;
+  }
+
+  const updated = await applySessionTransition(session, 'STARTING', {
+    io,
+    actorUsername: actor?.username,
+    actorId: actor?.id,
+    data: {
+      currentPosition: nextPos,
+      currentGameId: nextGame.gameId,
+      currentChallengeId: null,
+      currentRun: { increment: 1 },
+    },
+  });
+
+  if (!updated) {
+    res.status(409).json({ error: `Cannot advance from status ${session.status}`, currentStatus: session.status });
+    return;
   }
 
   res.json({ session: updated });
@@ -323,20 +586,35 @@ router.post('/active/submit', authenticate, async (req: AuthRequest, res: Respon
     return;
   }
 
-  const challenge = await prisma.challenge.findUnique({
+  // Authoritative server-time cutoff: even if the sweep has not flipped the
+  // status yet, submissions past the persisted deadline are rejected.
+  if (session.questionEndsAt && Date.now() > session.questionEndsAt.getTime()) {
+    res.status(400).json({ error: 'Question deadline has passed' });
+    return;
+  }
+
+  const liveChallenge = await prisma.challenge.findUnique({
     where: { id: challengeId }
   });
 
-  if (!challenge) {
+  if (!liveChallenge) {
     res.status(404).json({ error: 'Challenge not found' });
     return;
   }
 
-  const validationType = gameTemplate?.challengeSchema?.validationType || 'EXACT';
+  // Grade against the FROZEN snapshot — never the live Challenge row.
+  const challenge = getChallengeForLiveSession(session, liveChallenge);
+
+  const config = challenge.config as any;
+  let validationType = gameTemplate?.challengeSchema?.validationType || 'EXACT';
+  if (challenge.type === 'MULTIPLE_CHOICE' || challenge.type === 'MULTI_CHOICE' || Array.isArray(config?.answer)) {
+    validationType = 'MULTI_SELECT';
+  } else if (challenge.type === 'SINGLE_CHOICE' || challenge.type === 'CHOICE' || challenge.type === 'TRUE_FALSE') {
+    validationType = 'EXACT';
+  }
 
   // Normalize single-letter answers to the actual option text if applicable
   let parsedSubmission = String(answer || '').trim();
-  const config = challenge.config as any;
   if (parsedSubmission.length === 1 && /^[a-zA-Z]$/.test(parsedSubmission)) {
     const idx = parsedSubmission.toUpperCase().charCodeAt(0) - 65;
     if (config.options && config.options[idx]) {
@@ -382,9 +660,10 @@ router.post('/active/submit', authenticate, async (req: AuthRequest, res: Respon
   if (isCorrect) {
     pointsAwarded = challenge.points;
     const gameConfig = (session.currentGame?.config || {}) as any;
-    
-    // Speed Bonus
-    if (session.challengeStartTime && challenge.timeLimit > 0) {
+    const isRapidOrQuiz = session.currentGame?.template === 'RAPID_FIRE' || session.currentGame?.template === 'QUIZ';
+
+    // Speed Bonus — only for legacy templates that do not use end-of-game time bonus
+    if (!isRapidOrQuiz && session.challengeStartTime && challenge.timeLimit > 0) {
       const timeLimitMs = challenge.timeLimit * 1000;
       if (responseTimeMs < timeLimitMs) {
         let maxSpeedBonus = 0;
@@ -1025,6 +1304,13 @@ router.post('/:code/submit', authenticate, async (req: AuthRequest, res: Respons
     return;
   }
 
+  // Authoritative server-time cutoff: even if the sweep has not flipped the
+  // status yet, submissions past the persisted deadline are rejected.
+  if (session.questionEndsAt && Date.now() > session.questionEndsAt.getTime()) {
+    res.status(400).json({ error: 'Question deadline has passed' });
+    return;
+  }
+
   const sessionPlayer = await prisma.sessionPlayer.findFirst({
     where: { session: { roomCode: code }, userId: req.userId! }
   });
@@ -1034,14 +1320,17 @@ router.post('/:code/submit', authenticate, async (req: AuthRequest, res: Respons
     return;
   }
 
-  const challenge = await prisma.challenge.findUnique({
+  const liveChallenge = await prisma.challenge.findUnique({
     where: { id: session.currentChallengeId }
   });
 
-  if (!challenge) {
+  if (!liveChallenge) {
     res.status(404).json({ error: 'Challenge not found' });
     return;
   }
+
+  // Grade against the FROZEN snapshot — never the live Challenge row.
+  const challenge = getChallengeForLiveSession(session, liveChallenge);
 
   // Check correctness
   const isCorrect = validateChallengeAnswer(challenge, answer);
@@ -1054,10 +1343,11 @@ router.post('/:code/submit', authenticate, async (req: AuthRequest, res: Respons
 
   if (isCorrect) {
     pointsAwarded = challenge.points;
-    if (session.currentGame?.speedBonus && session.challengeStartTime) {
-      const timeLimitMs = challenge.timeLimit * 1000;
+    const isQuizOrRapidFire = !session.currentGame?.template || session.currentGame.template === 'QUIZ' || session.currentGame.template === 'RAPID_FIRE';
+    if (!isQuizOrRapidFire && session.currentGame?.speedBonus && session.challengeStartTime) {
+      const timeLimitMs = (challenge.timeLimit || 30) * 1000;
       if (responseTimeMs < timeLimitMs) {
-        const bonusPct = (timeLimitMs - responseTimeMs) / timeLimitMs; // 1.0 to 0.0
+        const bonusPct = (timeLimitMs - responseTimeMs) / timeLimitMs;
         pointsAwarded += Math.floor((challenge.points * 0.5) * bonusPct);
       }
     }
@@ -1077,6 +1367,12 @@ router.post('/:code/submit', authenticate, async (req: AuthRequest, res: Respons
       }
     });
 
+    const io = req.app.get('io');
+    if (io) {
+      const state = await getSessionState(session.roomCode);
+      io.to(`session:${session.roomCode}`).emit('session_state_update', state);
+    }
+
     res.json({ 
       submission,
       isCorrect,
@@ -1087,6 +1383,29 @@ router.post('/:code/submit', authenticate, async (req: AuthRequest, res: Respons
     });
   } catch (error: any) {
     if (error.code === 'P2002') {
+      // Idempotent duplicate — return the existing submission instead of an error.
+      const existing = await prisma.submission.findUnique({
+        where: {
+          sessionId_challengeId_playerId_runId: {
+            sessionId: session.id,
+            challengeId: challenge.id,
+            playerId: sessionPlayer.id,
+            runId: session.currentRun,
+          }
+        }
+      });
+      if (existing) {
+        res.json({
+          submission: existing,
+          duplicate: true,
+          isCorrect: existing.isCorrect,
+          pointsAwarded: existing.score,
+          isRapidFire: session.currentGame?.template === 'RAPID_FIRE',
+          streak: 0,
+          isChainReaction: false,
+        });
+        return;
+      }
       res.status(400).json({ error: 'Already submitted' });
     } else {
       res.status(500).json({ error: 'Internal server error' });
@@ -1094,12 +1413,12 @@ router.post('/:code/submit', authenticate, async (req: AuthRequest, res: Respons
   }
 });
 
-// POST /api/sessions/:code/start — Host starts the round
+// POST /api/sessions/:code/start — Host starts the round (state-machine guarded)
 router.post('/:code/start', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const code = (req.params.code as string).toUpperCase();
   const session = await prisma.session.findUnique({
     where: { roomCode: code },
-    include: { currentGame: { include: { challenges: { orderBy: { position: 'asc' } } } }, event: true }
+    include: { currentGame: true, event: true }
   });
 
   if (!session) {
@@ -1113,32 +1432,38 @@ router.post('/:code/start', authenticate, async (req: AuthRequest, res: Response
     return;
   }
 
-  const firstChallengeId = session.currentGame?.challenges?.[0]?.id || null;
-
-  const updated = await prisma.session.update({
-    where: { roomCode: code },
-    data: {
-      status: 'ROUND_ACTIVE',
-      currentChallengeId: session.currentChallengeId || firstChallengeId,
-      challengeStartTime: new Date(),
-    }
-  });
-
   const io = req.app.get('io');
-  if (io) {
-    const updatedState = await getSessionState(code);
-    io.to(`session:${code}`).emit('session_state_update', updatedState);
+  const actor = await prisma.user.findUnique({ where: { id: req.userId! } });
+
+  // LOBBY → STARTING announces the game; STARTING → QUESTION_ACTIVE begins it.
+  let updated: any = null;
+  if (session.status === 'STARTING') {
+    const firstChallengeId = ((session as any).snapshot as any)?.challenges?.[0]?.id
+      || (session.currentGame as any)?.challenges?.[0]?.id
+      || null;
+    if (!firstChallengeId) {
+      res.status(400).json({ error: 'No questions available to start' });
+      return;
+    }
+    updated = await startQuestion(session, firstChallengeId, { io, actorUsername: actor?.username, actorId: actor?.id });
+  } else {
+    updated = await applySessionTransition(session, 'STARTING', { io, actorUsername: actor?.username, actorId: actor?.id });
+  }
+
+  if (!updated) {
+    res.status(409).json({ error: `Cannot start from status ${session.status}` });
+    return;
   }
 
   res.json({ success: true, session: updated });
 });
 
-// POST /api/sessions/:code/next — Host advances to next challenge
-router.post('/:code/next', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+// POST /api/sessions/:code/lock — Host locks the current question (stops submissions)
+router.post('/:code/lock', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const code = (req.params.code as string).toUpperCase();
   const session = await prisma.session.findUnique({
     where: { roomCode: code },
-    include: { currentGame: { include: { challenges: { orderBy: { position: 'asc' } } } }, event: true }
+    include: { event: true }
   });
 
   if (!session) {
@@ -1152,26 +1477,111 @@ router.post('/:code/next', authenticate, async (req: AuthRequest, res: Response)
     return;
   }
 
-  const challenges = session.currentGame?.challenges || [];
-  const currentIdx = challenges.findIndex(c => c.id === session.currentChallengeId);
-  const nextChallenge = challenges[currentIdx + 1] || challenges[0];
-
-  const updated = await prisma.session.update({
-    where: { roomCode: code },
-    data: {
-      currentChallengeId: nextChallenge ? nextChallenge.id : null,
-      challengeStartTime: new Date(),
-      status: 'ROUND_ACTIVE',
-    }
-  });
-
   const io = req.app.get('io');
-  if (io) {
-    const updatedState = await getSessionState(code);
-    io.to(`session:${code}`).emit('session_state_update', updatedState);
+  const actor = await prisma.user.findUnique({ where: { id: req.userId! } });
+  const updated = await lockQuestion(session, { io, actorUsername: actor?.username, actorId: actor?.id });
+
+  if (!updated) {
+    res.status(409).json({ error: `No active question to lock from status ${session.status}` });
+    return;
   }
 
   res.json({ success: true, session: updated });
+});
+
+// POST /api/sessions/:code/end — Emergency / normal END (idempotent finalization)
+router.post('/:code/end', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const code = (req.params.code as string).toUpperCase();
+  const session = await prisma.session.findUnique({
+    where: { roomCode: code },
+    include: { event: true }
+  });
+
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+
+  const isAuthorized = await checkEventAuthorization(session.eventId, req.userId!);
+  if (!isAuthorized) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const io = req.app.get('io');
+  const actor = await prisma.user.findUnique({ where: { id: req.userId! } });
+  const result = await finalizeSession(session, { io, actorUsername: actor?.username, actorId: actor?.id });
+
+  res.status(result.alreadyEnded ? 200 : 200).json({
+    success: true,
+    alreadyEnded: result.alreadyEnded,
+    session: result.session,
+  });
+});
+
+// POST /api/sessions/:code/next — Host advances to next challenge (state-machine guarded)
+router.post('/:code/next', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const code = (req.params.code as string).toUpperCase();
+  const session = await prisma.session.findUnique({
+    where: { roomCode: code },
+    include: { currentGame: true, event: true }
+  });
+
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+
+  const isAuthorized = await checkEventAuthorization(session.eventId, req.userId!);
+  if (!isAuthorized) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const io = req.app.get('io');
+  const actor = await prisma.user.findUnique({ where: { id: req.userId! } });
+
+  // Only advance from result states or while a locked question awaits the next one.
+  if (!canTransition(session.status, 'QUESTION_ACTIVE') && session.status !== 'QUESTION_RESULTS') {
+    res.status(409).json({ error: `Cannot advance next question from status ${session.status}` });
+    return;
+  }
+
+  const snapshot: any = (session as any).snapshot;
+  const challenges: any[] = Array.isArray(snapshot?.challenges)
+    ? snapshot.challenges
+    : (session.currentGame as any)?.challenges || [];
+
+  const currentIdx = challenges.findIndex((c: any) => c.id === session.currentChallengeId);
+  const nextChallenge = challenges[currentIdx + 1];
+
+  if (nextChallenge) {
+    const updated = await startQuestion(session, nextChallenge.id, { io, actorUsername: actor?.username, actorId: actor?.id });
+    if (!updated) {
+      res.status(409).json({ error: 'Cannot advance' });
+      return;
+    }
+    res.json({ success: true, session: updated });
+    return;
+  }
+
+  // No more challenges — show the leaderboard (RESULTS) through the gateway.
+  // Idempotent: if already RESULTS/ENDED, return the current session as success.
+  if (session.status === 'RESULTS' || session.status === 'ENDED') {
+    res.json({ success: true, session, finished: true });
+    return;
+  }
+  const updated = await applySessionTransition(session, 'RESULTS', {
+    io,
+    actorUsername: actor?.username,
+    actorId: actor?.id,
+  });
+  if (!updated) {
+    res.status(409).json({ error: `Cannot show results from status ${session.status}`, currentStatus: session.status });
+    return;
+  }
+
+  res.json({ success: true, session: updated, finished: true });
 });
 
 // POST /api/sessions/:code/answer — Unified answer endpoint for clients
@@ -1204,9 +1614,23 @@ router.post('/:code/answer', authenticate, async (req: AuthRequest, res: Respons
     challengeId = session.currentGame.challenges[0].id;
   }
 
-  const challenge = await prisma.challenge.findUnique({ where: { id: challengeId } });
-  if (!challenge) {
+  const liveChallenge = await prisma.challenge.findUnique({ where: { id: challengeId } });
+  if (!liveChallenge) {
     res.status(404).json({ error: 'Challenge not found' });
+    return;
+  }
+
+  // Grade against the FROZEN snapshot — never the live Challenge row.
+  const challenge = getChallengeForLiveSession(session, liveChallenge);
+
+  // Authoritative server-time cutoff for the live question.
+  if (
+    session.status === 'QUESTION_ACTIVE' &&
+    challengeId === session.currentChallengeId &&
+    session.questionEndsAt &&
+    Date.now() > session.questionEndsAt.getTime()
+  ) {
+    res.status(400).json({ error: 'Question deadline has passed' });
     return;
   }
 

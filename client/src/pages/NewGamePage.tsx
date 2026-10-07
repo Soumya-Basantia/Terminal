@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../lib/api';
 import { DesignerLayout } from './DashboardPage';
 import { HelpCircle, Zap, ArrowRight } from 'lucide-react';
-import { TerminalInput, TerminalButton, TerminalBadge } from '../components/ui';
+import { TerminalInput, TerminalButton, TerminalBadge, TerminalBackButton } from '../components/ui';
 
 const TEMPLATES = [
   {
@@ -61,6 +61,14 @@ export default function NewGamePage() {
   return (
     <DesignerLayout clubId={clubId}>
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        {/* Navigation Back Control */}
+        <div className="mb-4">
+          <TerminalBackButton
+            to={clubId ? `/clubs/${clubId}` : '/gm?tab=games'}
+            hasUnsavedChanges={Boolean(formData.name.trim() || formData.description.trim() || step === 2)}
+            unsavedMessage="Discard game configuration and return to Game Master workspace?"
+          />
+        </div>
 
         {/* Header */}
         <div className="mb-6 sm:mb-8">
@@ -111,9 +119,13 @@ export default function NewGamePage() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <TerminalButton onClick={() => navigate(clubId ? `/clubs/${clubId}` : '/dashboard')} variant="secondary" className="flex-1 min-h-[44px]">
-                    CANCEL
-                  </TerminalButton>
+                  <TerminalBackButton
+                    to={clubId ? `/clubs/${clubId}` : '/gm?tab=games'}
+                    label="CANCEL"
+                    className="flex-1 min-h-[44px] justify-center"
+                    hasUnsavedChanges={Boolean(formData.name.trim() || formData.description.trim())}
+                    unsavedMessage="Discard game configuration and return to Game Master workspace?"
+                  />
                   <TerminalButton onClick={() => setStep(2)} variant="primary" className="flex-1 min-h-[44px]">
                     CONTINUE <ArrowRight size={13} />
                   </TerminalButton>

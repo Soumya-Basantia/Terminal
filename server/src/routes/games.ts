@@ -28,6 +28,7 @@ const ChallengeSchema = z.object({
   prompt: z.string().min(1).default(''),
   options: z.array(z.string()).optional(),
   answer: z.union([z.string(), z.array(z.string())]).optional(),
+  explanation: z.string().optional(),
   points: z.number().int().min(1).default(100),
   timerSecs: z.number().int().min(5).max(300).default(30),
   difficulty: z.string().optional(),
@@ -38,7 +39,59 @@ const ChallengeSchema = z.object({
   onSuccess: z.string().optional(),
 });
 
+export function validateQuestionTypeSemantics(
+  type: string,
+  options?: string[],
+  answer?: any
+): string | null {
+  if (type === 'SINGLE_CHOICE' || type === 'CHOICE') {
+    if (!options || !Array.isArray(options) || options.filter(o => typeof o === 'string' && o.trim() !== '').length < 2) {
+      return 'Single choice questions must have at least 2 non-empty options.';
+    }
+    if (answer === undefined || answer === null || answer === '' || Array.isArray(answer)) {
+      return 'Single choice questions require exactly one correct answer.';
+    }
+    const cleanOpts = options.map(o => String(o).trim().toLowerCase());
+    const cleanAns = String(answer).trim().toLowerCase();
+    const isLetter = cleanAns.length === 1 && /^[a-d]$/.test(cleanAns);
+    if (!cleanOpts.includes(cleanAns) && !isLetter) {
+      return 'The selected correct answer must exist in the provided options.';
+    }
+  } else if (type === 'MULTIPLE_CHOICE' || type === 'MULTI_CHOICE') {
+    if (!options || !Array.isArray(options) || options.filter(o => typeof o === 'string' && o.trim() !== '').length < 2) {
+      return 'Multiple choice questions must have at least 2 non-empty options.';
+    }
+    const ansArray = Array.isArray(answer)
+      ? answer.filter(a => typeof a === 'string' && a.trim() !== '')
+      : (typeof answer === 'string' && answer.trim() ? [answer.trim()] : []);
+    if (ansArray.length < 1) {
+      return 'Multiple choice questions require at least one correct answer.';
+    }
+    const cleanOpts = options.map(o => String(o).trim().toLowerCase());
+    for (const a of ansArray) {
+      const cleanA = String(a).trim().toLowerCase();
+      const isLetter = cleanA.length === 1 && /^[a-d]$/.test(cleanA);
+      if (!cleanOpts.includes(cleanA) && !isLetter) {
+        return `Correct answer "${a}" does not exist in the provided options.`;
+      }
+    }
+  } else if (type === 'TRUE_FALSE') {
+    if (!options || !Array.isArray(options) || options.length !== 2) {
+      return 'True/False questions must have exactly two options: True and False.';
+    }
+    const optLower = options.map(o => String(o).trim().toLowerCase());
+    if (optLower[0] !== 'true' || optLower[1] !== 'false') {
+      return 'True/False options must be exactly True and False.';
+    }
+    if (typeof answer !== 'string' || (answer.trim().toLowerCase() !== 'true' && answer.trim().toLowerCase() !== 'false')) {
+      return 'True/False questions require exactly one correct answer: True or False.';
+    }
+  }
+  return null;
+}
+
 import { checkGameAuthorization, checkClubAuthorization } from '../utils/authorization';
+import { preflightGameForHosting } from '../services/sessionLifecycle';
 
 // Helper to verify access
 async function verifyGameAccess(gameId: string, userId: string, res: Response, includeChallenges: boolean = false) {
@@ -176,6 +229,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response): Promis
         timerSecs: c.timeLimit,
         options: config.options,
         answer: config.answer,
+        explanation: config.explanation,
         difficulty: config.difficulty,
         clue: config.clue,
         action: config.action,
@@ -247,6 +301,14 @@ router.post('/:id/challenges', authenticate, async (req: AuthRequest, res: Respo
     return;
   }
 
+  if (['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE'].includes(parsed.data.type)) {
+    const semError = validateQuestionTypeSemantics(parsed.data.type, parsed.data.options, parsed.data.answer);
+    if (semError) {
+      res.status(400).json({ error: semError });
+      return;
+    }
+  }
+
   const existingCount = await prisma.challenge.count({ where: { gameId: req.params.id as string } });
 
   const challenge = await prisma.challenge.create({
@@ -258,15 +320,16 @@ router.post('/:id/challenges', authenticate, async (req: AuthRequest, res: Respo
       points: parsed.data.points,
       timeLimit: parsed.data.timerSecs,
       config: {
+        ...(req.body.config || {}),
         options: parsed.data.options,
         answer: parsed.data.answer,
+        explanation: parsed.data.explanation,
         difficulty: parsed.data.difficulty,
         clue: parsed.data.clue,
         action: parsed.data.action,
         field: parsed.data.field,
         correct: parsed.data.correct,
         onSuccess: parsed.data.onSuccess,
-        ...(req.body.config || {}),
         ...(req.body.initialState ? { initialState: req.body.initialState } : {}),
         ...(req.body.targetState ? { targetState: req.body.targetState } : {}),
         ...(req.body.blocks ? { blocks: req.body.blocks } : {}),
@@ -285,6 +348,7 @@ router.post('/:id/challenges', authenticate, async (req: AuthRequest, res: Respo
       timerSecs: challenge.timeLimit,
       options: config.options,
       answer: config.answer,
+      explanation: config.explanation,
       difficulty: config.difficulty,
       clue: config.clue,
       action: config.action,
@@ -306,6 +370,48 @@ router.patch('/:id/challenges/:challengeId', authenticate, async (req: AuthReque
     return;
   }
 
+  const existingChallenge = await prisma.challenge.findUnique({
+    where: { id: req.params.challengeId as string },
+  });
+  if (!existingChallenge) {
+    res.status(404).json({ error: 'Challenge not found' });
+    return;
+  }
+
+  const effectiveType = parsed.data.type || existingChallenge.type;
+  const existingConfig = (existingChallenge.config as Record<string, any>) || {};
+  const effectiveOptions = parsed.data.options !== undefined ? parsed.data.options : existingConfig.options;
+  const effectiveAnswer = parsed.data.answer !== undefined ? parsed.data.answer : existingConfig.answer;
+
+  if (['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE'].includes(effectiveType)) {
+    const semError = validateQuestionTypeSemantics(effectiveType, effectiveOptions, effectiveAnswer);
+    if (semError) {
+      res.status(400).json({ error: semError });
+      return;
+    }
+  }
+
+  const mergedConfig = {
+    ...existingConfig,
+    ...(req.body.config || {}),
+    ...(parsed.data.options !== undefined ? { options: parsed.data.options } : {}),
+    ...(parsed.data.answer !== undefined ? { answer: parsed.data.answer } : {}),
+    ...(parsed.data.explanation !== undefined ? { explanation: parsed.data.explanation } : {}),
+    ...(parsed.data.difficulty !== undefined ? { difficulty: parsed.data.difficulty } : {}),
+    ...(parsed.data.clue !== undefined ? { clue: parsed.data.clue } : {}),
+    ...(parsed.data.action !== undefined ? { action: parsed.data.action } : {}),
+    ...(parsed.data.field !== undefined ? { field: parsed.data.field } : {}),
+    ...(parsed.data.correct !== undefined ? { correct: parsed.data.correct } : {}),
+    ...(parsed.data.onSuccess !== undefined ? { onSuccess: parsed.data.onSuccess } : {}),
+    ...(req.body.initialState ? { initialState: req.body.initialState } : {}),
+    ...(req.body.targetState ? { targetState: req.body.targetState } : {}),
+    ...(req.body.blocks ? { blocks: req.body.blocks } : {}),
+    ...(req.body.correctSequence ? { correctSequence: req.body.correctSequence } : {}),
+    ...(req.body.narrative ? { narrative: req.body.narrative } : {}),
+    ...(req.body.hintText ? { hintText: req.body.hintText } : {}),
+    ...(req.body.revealText ? { revealText: req.body.revealText } : {}),
+  };
+
   const challenge = await prisma.challenge.update({
     where: { id: req.params.challengeId as string },
     data: {
@@ -313,24 +419,7 @@ router.patch('/:id/challenges/:challengeId', authenticate, async (req: AuthReque
       prompt: parsed.data.prompt,
       points: parsed.data.points,
       timeLimit: parsed.data.timerSecs,
-      config: {
-        options: parsed.data.options,
-        answer: parsed.data.answer,
-        difficulty: parsed.data.difficulty,
-        clue: parsed.data.clue,
-        action: parsed.data.action,
-        field: parsed.data.field,
-        correct: parsed.data.correct,
-        onSuccess: parsed.data.onSuccess,
-        ...(req.body.config || {}),
-        ...(req.body.initialState ? { initialState: req.body.initialState } : {}),
-        ...(req.body.targetState ? { targetState: req.body.targetState } : {}),
-        ...(req.body.blocks ? { blocks: req.body.blocks } : {}),
-        ...(req.body.correctSequence ? { correctSequence: req.body.correctSequence } : {}),
-        ...(req.body.narrative ? { narrative: req.body.narrative } : {}),
-        ...(req.body.hintText ? { hintText: req.body.hintText } : {}),
-        ...(req.body.revealText ? { revealText: req.body.revealText } : {}),
-      }
+      config: mergedConfig,
     },
   });
 
@@ -341,6 +430,7 @@ router.patch('/:id/challenges/:challengeId', authenticate, async (req: AuthReque
       timerSecs: challenge.timeLimit,
       options: config.options,
       answer: config.answer,
+      explanation: config.explanation,
       difficulty: config.difficulty,
       clue: config.clue,
       action: config.action,
@@ -383,6 +473,37 @@ router.post('/:id/challenges/reorder', authenticate, async (req: AuthRequest, re
   });
 
   res.json({ challenges });
+});
+
+// POST /api/games/:id/preflight — validate a game is hostable BEFORE hosting
+// Returns structured per-question issues for a "[ BACK TO EDITOR ]" screen.
+router.post('/:id/preflight', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const game = await prisma.game.findUnique({
+    where: { id: req.params.id as string },
+    include: { challenges: { orderBy: { position: 'asc' } }, _count: { select: { challenges: true } } },
+  });
+
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  const isAuthorized = await checkGameAuthorization(game.id, req.userId!);
+  if (!isAuthorized) {
+    res.status(403).json({ error: 'Forbidden: Club Admin or Game Designer access required' });
+    return;
+  }
+
+  const preflight = await preflightGameForHosting(game);
+  res.json({
+    ok: preflight.ok,
+    hostable: preflight.ok,
+    issues: preflight.issues,
+    gameId: game.id,
+    name: game.name,
+    status: game.status,
+    questionCount: game.challenges.length,
+  });
 });
 
 export default router;

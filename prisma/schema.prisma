@@ -500,8 +500,14 @@ model Session {
   currentChallengeId String?
   currentRun         Int           @default(0)
   challengeStartTime DateTime?
+  questionEndsAt     DateTime?
+  autoAdvanceAt      DateTime? // persisted schedule for the sweep worker (restart-safe auto-advance)
   startedAt          DateTime?
   endedAt            DateTime?
+  sequence           Int           @default(0) // monotonic session state version (event ordering)
+  snapshot           Json? // immutable frozen game config used by this live session
+  snapshotVersion    String? // stable hash/version identifier of the frozen snapshot
+  gmId               String? // authoritative controlling Game Master for this session
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 

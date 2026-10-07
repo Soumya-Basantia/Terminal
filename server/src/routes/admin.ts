@@ -1,4 +1,5 @@
 import { Router, Response, NextFunction } from 'express';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
@@ -2099,6 +2100,55 @@ router.patch(['/gamemasters/:id/status', '/game-masters/:id/status'], async (req
     message: `Game Master ${status.toLowerCase()} successfully`,
     user: updated,
   });
+});
+
+// ── ADMIN FORCED PASSWORD RESET ──
+// POST /api/admin/users/:id/reset-password
+const AdminResetPasswordSchema = z.object({
+  newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+});
+
+router.post('/users/:id/reset-password', async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = String(req.params.id);
+  const adminActor = await getAdminActor(req);
+
+  const parsed = AdminResetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid input', details: parsed.error.flatten() });
+    return;
+  }
+
+  const { newPassword } = parsed.data;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // SECURITY: Hash the new password — never store plaintext
+    const newHash = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id },
+      data: { passwordHash: newHash },
+    });
+
+    await createAuditLog({
+      adminId: adminActor.adminId,
+      adminUsername: adminActor.adminUsername,
+      action: 'USER_PASSWORD_RESET',
+      targetType: 'USER',
+      targetId: id,
+      details: { note: 'Administrator forced password reset' },
+    });
+
+    // NEVER return the hash in the response
+    res.json({ success: true, message: 'User password has been reset successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to reset user password', details: err.message });
+  }
 });
 
 export default router;

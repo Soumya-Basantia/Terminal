@@ -37,6 +37,10 @@ export default function TerminalPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (user && user.role !== 'PLAYER') {
+      navigate('/gm', { replace: true });
+      return;
+    }
     initializeCommands();
 
     let isMounted = true;

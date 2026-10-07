@@ -40,6 +40,11 @@ router.get('/student', async (req: AuthRequest, res: Response): Promise<void> =>
     return;
   }
 
+  if (user.role !== 'PLAYER') {
+    res.status(403).json({ error: 'Forbidden: Student workspace is only accessible to students (PLAYER role)' });
+    return;
+  }
+
   // Derive real score, solved challenges, and participation strictly from DB
   const submissions = await prisma.submission.findMany({
     where: { player: { userId } },

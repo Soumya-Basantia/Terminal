@@ -78,10 +78,28 @@ export class Validator {
 
   private static exact(context: ValidationContext): ValidationResult {
     const expected = context.challengeConfig.answer;
-    if (typeof expected === 'string' && typeof context.submission === 'string') {
-        return { isCorrect: context.submission === expected };
+    const actual = context.submission;
+    if (typeof expected === 'string' && typeof actual === 'string') {
+      if (actual.trim() === expected.trim() || actual.trim().toLowerCase() === expected.trim().toLowerCase()) {
+        return { isCorrect: true };
+      }
     }
-    return { isCorrect: String(context.submission) === String(expected) };
+    const opts = context.challengeConfig.options;
+    if (Array.isArray(opts)) {
+      if (typeof expected === 'string' && expected.length === 1 && /^[a-zA-Z]$/.test(expected)) {
+        const idx = expected.toUpperCase().charCodeAt(0) - 65;
+        if (opts[idx] && String(opts[idx]).trim().toLowerCase() === String(actual).trim().toLowerCase()) {
+          return { isCorrect: true };
+        }
+      }
+      if (typeof actual === 'string' && actual.length === 1 && /^[a-zA-Z]$/.test(actual)) {
+        const idx = actual.toUpperCase().charCodeAt(0) - 65;
+        if (opts[idx] && String(opts[idx]).trim().toLowerCase() === String(expected).trim().toLowerCase()) {
+          return { isCorrect: true };
+        }
+      }
+    }
+    return { isCorrect: String(actual).trim().toLowerCase() === String(expected).trim().toLowerCase() };
   }
 
   private static caseInsensitive(context: ValidationContext): ValidationResult {
@@ -91,20 +109,48 @@ export class Validator {
   }
 
   private static multipleChoice(context: ValidationContext): ValidationResult {
-    // Usually MCQ is just an exact string match (e.g. "A", "B")
-    const expected = context.challengeConfig.answer as string;
-    return { isCorrect: context.submission === expected };
+    // If challenge answer is an array or multiple-select, delegate to multiSelect
+    if (Array.isArray(context.challengeConfig.answer)) {
+      return this.multiSelect(context);
+    }
+    return this.exact(context);
   }
 
   private static multiSelect(context: ValidationContext): ValidationResult {
     try {
-      const expected = context.challengeConfig.answer as string[];
-      const actual = JSON.parse(context.submission) as string[];
+      let expected = context.challengeConfig.answer;
+      if (typeof expected === 'string') {
+        try {
+          const parsed = JSON.parse(expected);
+          expected = Array.isArray(parsed) ? parsed : [expected];
+        } catch {
+          expected = [expected];
+        }
+      }
+      let actual: any = context.submission;
+      if (typeof actual === 'string') {
+        try {
+          const parsed = JSON.parse(actual);
+          actual = Array.isArray(parsed) ? parsed : [actual];
+        } catch {
+          actual = [actual];
+        }
+      }
       if (!Array.isArray(expected) || !Array.isArray(actual)) return { isCorrect: false };
-      
-      const setA = new Set(expected);
-      const setB = new Set(actual);
-      
+
+      const opts = context.challengeConfig.options;
+      const normalizeItem = (item: any): string => {
+        const s = String(item).trim();
+        if (s.length === 1 && /^[a-zA-Z]$/.test(s) && Array.isArray(opts)) {
+          const idx = s.toUpperCase().charCodeAt(0) - 65;
+          if (opts[idx]) return String(opts[idx]).trim().toLowerCase();
+        }
+        return s.toLowerCase();
+      };
+
+      const setA = new Set(expected.map(normalizeItem));
+      const setB = new Set(actual.map(normalizeItem));
+
       if (setA.size !== setB.size) return { isCorrect: false };
       for (const a of setA) if (!setB.has(a)) return { isCorrect: false };
       return { isCorrect: true };

@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import type { User } from '../../types';
 import api from '../../lib/api';
 
+import { disconnectSocket } from '../../lib/socket';
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -46,11 +48,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    try {
+      disconnectSocket();
+    } catch {}
     setUser(null);
     setToken(null);
     localStorage.removeItem('terminal_token');
     localStorage.removeItem('terminal_user');
     localStorage.removeItem('terminal_player');
+    localStorage.removeItem('token');
+    try {
+      sessionStorage.clear();
+    } catch {}
     window.location.href = '/login';
   }, []);
 

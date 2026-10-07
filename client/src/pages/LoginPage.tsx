@@ -693,6 +693,7 @@ export default function LoginPage() {
                             <label className="block text-[10px] font-mono font-bold text-[#00E5FF] uppercase">&gt; PASSPHRASE</label>
                             <input
                               type="password"
+                              autoComplete="new-password"
                               value={studentForm.password}
                               onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
                               placeholder="Min 6 characters"
@@ -704,6 +705,7 @@ export default function LoginPage() {
                             <label className="block text-[10px] font-mono font-bold text-[#00E5FF] uppercase">&gt; CONFIRM</label>
                             <input
                               type="password"
+                              autoComplete="new-password"
                               value={studentForm.confirmPassword}
                               onChange={(e) => setStudentForm({ ...studentForm, confirmPassword: e.target.value })}
                               placeholder="Repeat password"
@@ -774,6 +776,7 @@ export default function LoginPage() {
                             <label className="block text-[10px] font-mono font-bold text-[#8B5CF6] uppercase">&gt; PASSPHRASE</label>
                             <input
                               type="password"
+                              autoComplete="new-password"
                               value={gmForm.password}
                               onChange={(e) => setGmForm({ ...gmForm, password: e.target.value })}
                               placeholder="Min 6 characters"
@@ -785,6 +788,7 @@ export default function LoginPage() {
                             <label className="block text-[10px] font-mono font-bold text-[#8B5CF6] uppercase">&gt; CONFIRM</label>
                             <input
                               type="password"
+                              autoComplete="new-password"
                               value={gmForm.confirmPassword}
                               onChange={(e) => setGmForm({ ...gmForm, confirmPassword: e.target.value })}
                               placeholder="Repeat password"

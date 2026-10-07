@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { disconnectSocket } from '../lib/socket';
+import { TerminalBackButton } from '../components/ui/TerminalBackButton';
 import { 
   ShieldCheck, 
   Users, 
@@ -529,8 +531,16 @@ export default function AdminPage() {
   }
 
   function handleLogout() {
+    try {
+      disconnectSocket();
+    } catch {}
     localStorage.removeItem('terminal_token');
     localStorage.removeItem('terminal_user');
+    localStorage.removeItem('terminal_player');
+    localStorage.removeItem('token');
+    try {
+      sessionStorage.clear();
+    } catch {}
     navigate('/login');
   }
 
@@ -591,12 +601,14 @@ export default function AdminPage() {
 
         {/* Right: Controls */}
         <div className="flex items-center gap-2 py-2">
-          <Link to="/terminal">
-            <button className="text-[10px] font-bold tracking-widest px-2.5 py-1.5 border border-[#2d3848] text-[#8b99aa] bg-[#0f1319] hover:text-white hover:border-[#48566a] transition-all" style={{ borderRadius: 0 }}>PLAYER VIEW</button>
-          </Link>
+          <TerminalBackButton
+            to="/terminal"
+            label="← PLAYER VIEW [ESC]"
+            className="py-1 px-2.5 text-[10px]"
+          />
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 text-[10px] font-black tracking-widest px-2.5 py-1.5 border border-[rgba(255,51,102,0.5)] text-[#ff3366] bg-[rgba(255,51,102,0.06)] hover:bg-[rgba(255,51,102,0.15)] transition-all"
+            className="flex items-center gap-1.5 text-[10px] font-black tracking-widest px-2.5 py-1.5 border border-[rgba(255,51,102,0.5)] text-[#ff3366] bg-[rgba(255,51,102,0.06)] hover:bg-[rgba(255,51,102,0.15)] transition-all cursor-pointer"
             style={{ borderRadius: 0 }}>
             <LogOut size={11} />
             <span className="hidden sm:inline">KILL SESSION</span>
@@ -1768,14 +1780,21 @@ export default function AdminPage() {
             </div>
 
             <div className="flex justify-between items-center pt-3 border-t border-[var(--term-border-subtle)]">
-              <TerminalButton
-                onClick={() => updateReportStatus(selectedReport.id, 'REJECTED')}
-                variant="danger"
-                size="sm"
+              <button
+                type="button"
+                onClick={() => setSelectedReport(null)}
+                className="px-3 py-1.5 bg-[#0e1422] hover:bg-[#162035] border border-zinc-700 text-zinc-300 font-mono text-xs font-bold transition-colors cursor-pointer"
               >
-                REJECT
-              </TerminalButton>
+                ← BACK TO REPORTS [ESC]
+              </button>
               <div className="flex gap-2">
+                <TerminalButton
+                  onClick={() => updateReportStatus(selectedReport.id, 'REJECTED')}
+                  variant="danger"
+                  size="sm"
+                >
+                  REJECT
+                </TerminalButton>
                 <TerminalButton
                   onClick={() => updateReportStatus(selectedReport.id, 'REVIEWING')}
                   variant="secondary"
@@ -1962,6 +1981,17 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+
+            {/* Back to student directory control */}
+            <div className="flex justify-end pt-3 border-t border-zinc-800 mt-3">
+              <button
+                type="button"
+                onClick={() => setStudentPerf(null)}
+                className="px-3 py-1.5 bg-[#0e1422] hover:bg-[#162035] border border-cyan-700/60 text-cyan-300 font-mono text-xs font-bold transition-colors cursor-pointer"
+              >
+                ← BACK TO DIRECTORY [ESC]
+              </button>
+            </div>
           </div>
         )}
       </TerminalModal>

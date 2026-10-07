@@ -6,3 +6,4 @@ export * from './TerminalModal';
 export * from './Brutalist';
 export * from './PixelArt';
 export * from './Stage';
+export * from './TerminalBackButton';

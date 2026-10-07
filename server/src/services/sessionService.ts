@@ -1,5 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { registry } from '../engine';
+import { calculateSessionScores } from './scoringService';
+import { isUserOnline } from '../sockets/presence';
 
 export interface SessionStatePayload {
   session: {
@@ -11,10 +13,14 @@ export interface SessionStatePayload {
     currentGameId: string | null;
     currentChallengeId: string | null;
     challengeStartTime: Date | null;
+    questionEndsAt: Date | null;
     currentPosition: number;
     currentRun: number;
+    sequence: number;
     startedAt: Date | null;
     endedAt: Date | null;
+    gmId: string | null;
+    snapshotVersion: string | null;
   };
   event: {
     id: string;
@@ -40,6 +46,65 @@ export interface SessionStatePayload {
   teamCount: number;
   answersCount?: number;
   leaderboard?: { name: string; score: number }[];
+  teamLeaderboard?: Array<{
+    teamId: string;
+    teamName: string;
+    membersCount: number;
+    members: Array<{ playerId: string; userId: string; username: string; score: number }>;
+    baseScore: number;
+    timeBonus: number;
+    finalScore: number;
+    rank: number;
+  }>;
+  individualLeaderboard?: Array<{
+    playerId: string;
+    userId: string;
+    username: string;
+    name: string | null;
+    usn: string | null;
+    teamName: string | null;
+    score: number;
+    rank: number;
+  }>;
+  timeBonusConfig?: {
+    enabled: boolean;
+    points: number;
+    ruleDescription: string;
+  };
+  playerRoster?: Array<{
+    id: string;
+    userId: string;
+    handle: string;
+    username: string;
+    name: string | null;
+    teamName: string | null;
+    teamId: string | null;
+    status: string;
+    connected: boolean;
+  }>;
+  teamRoster?: {
+    teams: Array<{
+      teamId: string;
+      teamName: string;
+      membersCount: number;
+      maxSize: number;
+      members: Array<{
+        playerId: string;
+        userId: string;
+        username: string;
+        handle: string;
+        connected: boolean;
+      }>;
+    }>;
+    unassignedCount: number;
+    unassignedPlayers: Array<{
+      playerId: string;
+      userId: string;
+      username: string;
+      handle: string;
+      connected: boolean;
+    }>;
+  };
   chainProgress?: Record<string, string>;
   dockProgress?: {
     totalInvestigators: number;
@@ -211,14 +276,98 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
           }
         }
       },
-      players: { where: { status: 'ACTIVE' } }
+      players: {
+        where: { status: 'ACTIVE' },
+        include: {
+          user: { select: { id: true, username: true, name: true, usn: true } },
+          team: { select: { id: true, name: true } }
+        }
+      }
     },
   });
 
   if (!session) return null;
 
+  // Authoritative scores across teams and individuals
+  const scores = await calculateSessionScores(session.id);
+
   // We can count distinct teams from the players
   const uniqueTeams = new Set(session.players.filter(p => p.teamId).map(p => p.teamId));
+
+  // Build public player roster (privacy-preserving: handle@terminal, no USN or passwords)
+  const playerRoster = session.players.map(p => ({
+    id: p.id,
+    userId: p.userId,
+    handle: `${p.user?.username || 'player'}@terminal`,
+    username: p.user?.username || 'player',
+    name: p.user?.name || null,
+    teamName: p.team?.name || null,
+    teamId: p.teamId,
+    status: p.status,
+    connected: isUserOnline(p.userId)
+  }));
+
+  // Build structured team roster with member handles and unassigned group
+  const teamRosterMap = new Map<string, {
+    teamId: string;
+    teamName: string;
+    membersCount: number;
+    maxSize: number;
+    members: Array<{
+      playerId: string;
+      userId: string;
+      username: string;
+      handle: string;
+      connected: boolean;
+    }>;
+  }>();
+
+  const unassignedPlayers: Array<{
+    playerId: string;
+    userId: string;
+    username: string;
+    handle: string;
+    connected: boolean;
+  }> = [];
+
+  for (const p of session.players) {
+    const handle = `${p.user?.username || 'player'}@terminal`;
+    const connected = isUserOnline(p.userId);
+    if (p.teamId && p.team) {
+      if (!teamRosterMap.has(p.teamId)) {
+        teamRosterMap.set(p.teamId, {
+          teamId: p.teamId,
+          teamName: p.team.name,
+          membersCount: 0,
+          maxSize: 4,
+          members: []
+        });
+      }
+      const t = teamRosterMap.get(p.teamId)!;
+      t.members.push({
+        playerId: p.id,
+        userId: p.userId,
+        username: p.user?.username || 'player',
+        handle,
+        connected
+      });
+      t.membersCount = t.members.length;
+    } else {
+      unassignedPlayers.push({
+        playerId: p.id,
+        userId: p.userId,
+        username: p.user?.username || 'player',
+        handle,
+        connected
+      });
+    }
+  }
+
+  const teamRoster = {
+    teams: Array.from(teamRosterMap.values()),
+    unassignedCount: unassignedPlayers.length,
+    unassignedPlayers
+  };
 
   let answersCount = 0;
   if (session.currentChallengeId) {
@@ -236,17 +385,7 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
     include: { player: { include: { user: true } }, team: true }
   });
 
-  const playerScores: Record<string, { name: string, score: number }> = {};
-  for (const sub of submissions) {
-    if (!playerScores[sub.playerId]) {
-      playerScores[sub.playerId] = { name: sub.player.user.username, score: 0 };
-    }
-    playerScores[sub.playerId].score += sub.score;
-  }
-  
-  const leaderboard = Object.values(playerScores)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
+  const leaderboard = scores.leaderboard;
 
   let chainProgress: Record<string, string> | undefined = undefined;
   
@@ -591,6 +730,41 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
 
   const effectiveStageMode = deriveStageModeFromStatus(session.status, session.stageMode);
 
+  // Prefer the frozen snapshot for live gameplay so editor edits never mutate
+  // an active session. Fall back to the live Game row for legacy sessions.
+  const snapshot: any = (session as any).snapshot;
+  const liveChallenges = (session.currentGame as any)?.challenges || [];
+
+  const safeChallenge = (ch: any) => {
+    if (!ch.config) return ch;
+    // Strip answer-revealing fields from config before sending to clients
+    const { answer, correct, correctSequence, optimalPath, correctRoute, bug, solution, solutionPatch, secret, culpritId, secretCulpritId, anomalousEventIds, anomalousEventId, anomalyMechanism, ...safeConfig } = ch.config;
+    if (Array.isArray(safeConfig.rules)) {
+      safeConfig.rules = safeConfig.rules.map((r: any) => {
+        const { hasBug, ...safeRule } = r;
+        return safeRule;
+      });
+    }
+    if (Array.isArray(safeConfig.events)) {
+      safeConfig.events = safeConfig.events.map((evt: any) => {
+        const { traceDetails, isRogue, ...safeEvt } = evt;
+        return safeEvt;
+      });
+    }
+    return { ...ch, options: safeConfig.options ?? ch.options, config: safeConfig };
+  };
+
+  const snapshotChallenges = (Array.isArray(snapshot?.challenges) ? snapshot.challenges : []).map((c: any) => {
+    const { answer, correct, ...safe } = c;
+    const config = c.config ? { ...c.config } : null;
+    if (config) {
+      delete config.answer;
+      delete config.correct;
+      delete config.solutionPatch;
+    }
+    return { ...safe, options: c.options ?? undefined, config };
+  });
+
   return {
     session: {
       id: session.id,
@@ -601,10 +775,14 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
       currentGameId: session.currentGameId,
       currentChallengeId: session.currentChallengeId,
       challengeStartTime: session.challengeStartTime,
+      questionEndsAt: session.questionEndsAt,
       currentPosition: session.currentPosition,
       currentRun: session.currentRun,
+      sequence: session.sequence,
       startedAt: session.startedAt,
       endedAt: session.endedAt,
+      gmId: session.gmId,
+      snapshotVersion: session.snapshotVersion,
     },
     event: {
       id: session.event.id,
@@ -614,9 +792,9 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
     },
     game: session.currentGame ? {
       id: session.currentGame.id,
-      name: session.currentGame.name,
+      name: snapshot?.gameName || session.currentGame.name,
       template: session.currentGame.template,
-      teamsEnabled: session.currentGame.teamsEnabled,
+      teamsEnabled: snapshot ? Boolean(snapshot.teamsEnabled) : session.currentGame.teamsEnabled,
       leaderboardVisibility: session.currentGame.leaderboardVisibility,
       speedBonus: session.currentGame.speedBonus,
     } : {
@@ -629,31 +807,19 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
     },
     currentGame: session.currentGame ? {
       id: session.currentGame.id,
-      name: session.currentGame.name,
+      name: snapshot?.gameName || session.currentGame.name,
       template: session.currentGame.template,
-      challenges: (session.currentGame as any).challenges?.map((ch: any) => {
-        if (!ch.config) return ch;
-        // Strip answer-revealing fields from config before sending to clients
-        const { answer, correct, correctSequence, optimalPath, correctRoute, bug, solution, solutionPatch, secret, culpritId, secretCulpritId, anomalousEventIds, anomalousEventId, anomalyMechanism, ...safeConfig } = ch.config;
-        if (Array.isArray(safeConfig.rules)) {
-          safeConfig.rules = safeConfig.rules.map((r: any) => {
-            const { hasBug, ...safeRule } = r;
-            return safeRule;
-          });
-        }
-        if (Array.isArray(safeConfig.events)) {
-          safeConfig.events = safeConfig.events.map((evt: any) => {
-            const { traceDetails, isRogue, ...safeEvt } = evt;
-            return safeEvt;
-          });
-        }
-        return { ...ch, options: safeConfig.options ?? ch.options, config: safeConfig };
-      }),
+      challenges: (snapshotChallenges.length > 0 ? snapshotChallenges : liveChallenges).map(safeChallenge),
     } : null,
     playerCount: session.players.length,
     teamCount: uniqueTeams.size,
     answersCount,
     leaderboard,
+    teamLeaderboard: scores.teams,
+    individualLeaderboard: scores.individuals,
+    timeBonusConfig: scores.timeBonusConfig,
+    playerRoster,
+    teamRoster,
     chainProgress,
     dockProgress,
     witnessProgress,

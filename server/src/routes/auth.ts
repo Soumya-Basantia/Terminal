@@ -570,4 +570,59 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise
   res.json({ user });
 });
 
+// ── SELF-SERVICE CHANGE PASSWORD ──
+// POST /api/auth/change-password
+router.post('/change-password', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = req.userId;
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const ChangePasswordSchema = z.object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+  });
+
+  const parsed = ChangePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid input', details: parsed.error.flatten() });
+    return;
+  }
+
+  const { currentPassword, newPassword } = parsed.data;
+
+  // Fetch only the fields needed — do not select passwordHash for response
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, passwordHash: true },
+  });
+
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: 'Current password is incorrect' });
+    return;
+  }
+
+  if (currentPassword === newPassword) {
+    res.status(400).json({ error: 'New password must be different from the current password' });
+    return;
+  }
+
+  const newHash = await bcrypt.hash(newPassword, 10);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: newHash },
+  });
+
+  // NEVER return the hash — return only a success message
+  res.json({ success: true, message: 'Password updated successfully' });
+});
+
 export default router;
