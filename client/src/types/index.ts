@@ -23,6 +23,7 @@ export interface User {
   phoneNumber?: string;
   role: UserRole;
   approvalStatus?: ApprovalStatus;
+  mustChangePassword?: boolean;
 }
 
 export interface Game {
@@ -202,11 +203,17 @@ export interface SessionStatePayload {
     currentPosition?: number;
     currentRun?: number;
     challengeEndsAt?: string | null;
+    questionEndsAt?: string | null;
+    autoAdvanceAt?: string | null;
     challengeStartTime?: string | Date | null;
     startedAt?: string | Date | null;
     endedAt?: string | Date | null;
     currentGameId?: string | null;
     currentChallengeId?: string | null;
+    isReviewRevealed?: boolean;
+    reviewQuestionIndex?: number;
+    reviewChallenge?: any;
+    snapshot?: any;
   };
   game: {
     id: string;
@@ -231,12 +238,17 @@ export interface SessionStatePayload {
   teamCount: number;
   answersCount?: number;
   leaderboard?: any[];
+  teamRoster?: any;
+  teamResponses?: any;
   chainProgress?: Record<string, string>;
   dockProgress?: any;
   witnessProgress?: any;
   scannerProgress?: any;
   missionProgress?: any;
   routerProgress?: any;
+  isReviewRevealed?: boolean;
+  reviewQuestionIndex?: number;
+  reviewChallenge?: any;
 }
 
 export interface EventGame {

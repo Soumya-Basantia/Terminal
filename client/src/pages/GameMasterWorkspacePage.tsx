@@ -22,6 +22,9 @@ import {
   Zap,
   ChevronRight,
   Eye,
+  Trash2,
+  Lock,
+  X,
 } from 'lucide-react';
 import { TerminalPanel, TerminalButton, TerminalBadge } from '../components/ui';
 
@@ -33,7 +36,9 @@ interface GmWorkspaceData {
     phone: string;
     approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
     role: string;
+    mustChangePassword?: boolean;
   };
+  mustChangePassword?: boolean;
   notice?: string;
   events: Array<{
     id: string;
@@ -110,7 +115,7 @@ function MetricCard({
 }
 
 export default function GameMasterWorkspacePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState<GmWorkspaceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,6 +124,20 @@ export default function GameMasterWorkspacePage() {
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [tick, setTick] = useState(0);
+
+  // Delete Game state
+  const [gameToDelete, setGameToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+
+  // First-Login Password Change state
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState('');
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 800);
@@ -156,6 +175,68 @@ export default function GameMasterWorkspacePage() {
       alert(err.response?.data?.error || 'Failed to initialize session');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwError('');
+    setPwSuccess('');
+
+    if (!pwCurrent) {
+      setPwError('Current password is required.');
+      return;
+    }
+    if (!pwNew || pwNew.length < 6) {
+      setPwError('New password must be at least 6 characters.');
+      return;
+    }
+    if (pwNew !== pwConfirm) {
+      setPwError('New passwords do not match.');
+      return;
+    }
+    if (pwNew === pwCurrent) {
+      setPwError('New password must be different from current password.');
+      return;
+    }
+
+    setPwLoading(true);
+    try {
+      await api.post('/auth/change-password', {
+        currentPassword: pwCurrent,
+        newPassword: pwNew,
+      });
+      updateUser({ mustChangePassword: false });
+      setPwSuccess('Password successfully updated! Unlocking Game Master workspace...');
+      setPwCurrent('');
+      setPwNew('');
+      setPwConfirm('');
+      setTimeout(() => {
+        loadWorkspace();
+      }, 800);
+    } catch (err: any) {
+      setPwError(err.response?.data?.error || 'Failed to update password.');
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const handleDeleteGame = async (gameId: string) => {
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      const res = await api.delete(`/games/${gameId}`);
+      setData(prev => prev ? {
+        ...prev,
+        games: prev.games.filter(g => g.id !== gameId)
+      } : null);
+      setDeleteSuccess(res.data?.message || 'Game successfully deleted.');
+      setGameToDelete(null);
+      setTimeout(() => setDeleteSuccess(null), 5000);
+    } catch (err: any) {
+      setDeleteError(err.response?.data?.error || 'Failed to delete game.');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -584,6 +665,18 @@ export default function GameMasterWorkspacePage() {
             {/* ── TAB: GAMES ─── */}
             {activeTab === 'games' && (
               <div className="flex flex-col gap-4">
+                {deleteSuccess && (
+                  <div className="p-3 bg-[rgba(63,185,80,0.1)] border-2 border-[#3fb950] text-[#3fb950] text-xs font-mono font-bold flex items-center justify-between shadow-[2px_2px_0px_#000]" style={{ borderRadius: 0 }}>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} />
+                      <span>{deleteSuccess}</span>
+                    </div>
+                    <button onClick={() => setDeleteSuccess(null)} className="text-[#3fb950] hover:text-white cursor-pointer">
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
                 {(!data?.games || data.games.length === 0) ? (
                   <div className="bg-[#0f1319] border border-[#1a222e] p-12 text-center shadow-[4px_4px_0px_#000]" style={{ borderRadius: 0 }}>
                     <Gamepad2 size={32} className="mx-auto text-[#3d4754] mb-4" />
@@ -614,17 +707,29 @@ export default function GameMasterWorkspacePage() {
                             <span>Hosted: <strong className="text-[#3fb950]">{g.sessionCount}</strong></span>
                           </div>
                         </div>
-                        <div className="px-4 pb-4 pt-2 border-t border-[#1a222e] flex gap-2">
+                        <div className="px-4 pb-4 pt-2 border-t border-[#1a222e] flex items-center gap-2">
                           <Link to={`/clubs/default/games/${g.id}/edit`} className="flex-1">
-                            <button className="w-full text-[10px] font-bold px-3 py-2 border border-[#2d3848] text-[#8b99aa] bg-[#161c24] hover:text-white hover:border-[#48566a] transition-all" style={{ borderRadius: 0 }}>
+                            <button className="w-full text-[10px] font-bold px-3 py-2 border border-[#2d3848] text-[#8b99aa] bg-[#161c24] hover:text-white hover:border-[#48566a] transition-all cursor-pointer" style={{ borderRadius: 0 }}>
                               EDIT QUESTIONS
                             </button>
                           </Link>
                           <Link to={`/clubs/default/games/${g.id}/host`}>
-                            <button className="text-[10px] font-black px-3 py-2 bg-[#00ffcc] text-black border-2 border-black shadow-[2px_2px_0px_#000] hover:bg-[#00ffd5] transition-all" style={{ borderRadius: 0 }}>
+                            <button className="text-[10px] font-black px-3 py-2 bg-[#00ffcc] text-black border-2 border-black shadow-[2px_2px_0px_#000] hover:bg-[#00ffd5] transition-all cursor-pointer" style={{ borderRadius: 0 }}>
                               HOST
                             </button>
                           </Link>
+                          <button
+                            type="button"
+                            aria-label={`Delete game ${g.name}`}
+                            title={`Delete game ${g.name}`}
+                            onClick={() => {
+                              setDeleteError(null);
+                              setGameToDelete({ id: g.id, name: g.name });
+                            }}
+                            className="px-2.5 py-2 border border-[#2d3848] text-[#f85149] bg-[#161c24] hover:bg-[rgba(248,81,73,0.15)] hover:border-[#f85149] transition-all flex items-center justify-center shrink-0 cursor-pointer"
+                            style={{ borderRadius: 0 }}>
+                            <Trash2 size={13} />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -635,6 +740,180 @@ export default function GameMasterWorkspacePage() {
           </>
         )}
       </main>
+
+      {/* ── DELETE GAME CONFIRMATION MODAL ─── */}
+      {gameToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs font-mono">
+          <div className="w-full max-w-md bg-[#0a0c10] border-2 border-[#f85149] shadow-[6px_6px_0px_#f85149] p-5 sm:p-6 flex flex-col gap-4 relative animate-in fade-in zoom-in-95 duration-150" style={{ borderRadius: 0 }}>
+            <div className="flex items-center justify-between border-b border-[#2d3848] pb-3">
+              <div className="flex items-center gap-2 text-[#f85149]">
+                <AlertCircle size={18} />
+                <span className="text-xs font-black tracking-widest uppercase">// DANGER ZONE — CONFIRM DELETION</span>
+              </div>
+              <button
+                onClick={() => { if (!deleteLoading) { setGameToDelete(null); setDeleteError(null); } }}
+                disabled={deleteLoading}
+                aria-label="Close dialog"
+                className="text-[#5e6b7c] hover:text-white cursor-pointer disabled:opacity-40">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="text-xs text-[#8b99aa]">You are about to permanently delete the game:</div>
+              <div className="text-base font-black text-white p-2.5 bg-[#161c24] border border-[#2d3848] truncate">
+                {gameToDelete.name}
+              </div>
+              <div className="text-[11px] text-[#f85149] leading-relaxed mt-1">
+                ⚠️ This action is permanent and cannot be undone. All questions and game configurations will be permanently purged.
+              </div>
+              <div className="text-[10px] text-[#5e6b7c] mt-0.5">
+                * Note: Only unplayed games with no recorded submissions, active sessions, or gameplay history may be deleted.
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="p-3 bg-red-950/70 border border-[#f85149] text-[#ff7b72] text-xs font-bold flex items-start gap-2">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                <div className="break-words">{deleteError}</div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1a222e]">
+              <button
+                type="button"
+                onClick={() => { setGameToDelete(null); setDeleteError(null); }}
+                disabled={deleteLoading}
+                className="px-4 py-2 text-xs font-bold text-[#8b99aa] border border-[#2d3848] bg-[#161c24] hover:text-white hover:border-[#48566a] transition-all cursor-pointer disabled:opacity-40"
+                style={{ borderRadius: 0 }}>
+                CANCEL
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteGame(gameToDelete.id)}
+                disabled={deleteLoading}
+                className="px-4 py-2 text-xs font-black text-white bg-[#da3633] border-2 border-black shadow-[2px_2px_0px_#000] hover:bg-[#b62324] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                style={{ borderRadius: 0 }}>
+                {deleteLoading ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    <span>DELETING...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={12} />
+                    <span>PERMANENTLY DELETE GAME</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── FIRST-LOGIN PASSWORD CHANGE MODAL ─── */}
+      {(user?.mustChangePassword || data?.mustChangePassword) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md font-mono">
+          <div className="w-full max-w-lg bg-[#0a0c10] border-2 border-[#00ffcc] shadow-[8px_8px_0px_#00ffcc] p-6 flex flex-col gap-5 relative animate-in fade-in zoom-in-95" style={{ borderRadius: 0 }}>
+            {/* Header */}
+            <div className="border-b border-[#1a222e] pb-3 flex items-center gap-3">
+              <div className="w-8 h-8 bg-[#00ffcc] text-black font-black flex items-center justify-center shadow-[2px_2px_0px_#000]" style={{ borderRadius: 0 }}>
+                <Lock size={16} />
+              </div>
+              <div>
+                <div className="text-xs font-black text-[#00ffcc] tracking-widest uppercase">// SECURITY PROTOCOL: FIRST LOGIN</div>
+                <div className="text-sm font-bold text-white">UPDATE TEMPORARY PASSWORD</div>
+              </div>
+            </div>
+
+            <div className="text-xs text-[#8b99aa] leading-relaxed bg-[#0f1319] p-3 border border-[#2d3848]">
+              A temporary initial password is currently active for this Game Master account.
+              In accordance with TERMINAL security policy, you must configure a private password before accessing the Game Master workspace.
+            </div>
+
+            <form onSubmit={handlePasswordChange} className="flex flex-col gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-[#5e6b7c] tracking-widest uppercase block mb-1.5">
+                  Current Temporary Password:
+                </label>
+                <input
+                  type="password"
+                  value={pwCurrent}
+                  onChange={(e) => setPwCurrent(e.target.value)}
+                  required
+                  placeholder="Enter temporary password"
+                  className="w-full p-2.5 bg-[#0f1319] text-white border-2 border-[#2d3848] focus:border-[#00ffcc] outline-none text-xs font-mono"
+                  style={{ borderRadius: 0 }}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-[#5e6b7c] tracking-widest uppercase block mb-1.5">
+                  New Secure Password (min 6 characters):
+                </label>
+                <input
+                  type="password"
+                  value={pwNew}
+                  onChange={(e) => setPwNew(e.target.value)}
+                  required
+                  minLength={6}
+                  placeholder="Enter new private password"
+                  className="w-full p-2.5 bg-[#0f1319] text-white border-2 border-[#2d3848] focus:border-[#00ffcc] outline-none text-xs font-mono"
+                  style={{ borderRadius: 0 }}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-[#5e6b7c] tracking-widest uppercase block mb-1.5">
+                  Confirm New Password:
+                </label>
+                <input
+                  type="password"
+                  value={pwConfirm}
+                  onChange={(e) => setPwConfirm(e.target.value)}
+                  required
+                  minLength={6}
+                  placeholder="Re-enter new private password"
+                  className="w-full p-2.5 bg-[#0f1319] text-white border-2 border-[#2d3848] focus:border-[#00ffcc] outline-none text-xs font-mono"
+                  style={{ borderRadius: 0 }}
+                />
+              </div>
+
+              {pwError && (
+                <div className="p-3 bg-red-950/70 border border-[#f85149] text-[#ff7b72] text-xs font-bold flex items-center gap-2">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{pwError}</span>
+                </div>
+              )}
+
+              {pwSuccess && (
+                <div className="p-3 bg-[rgba(63,185,80,0.15)] border border-[#3fb950] text-[#3fb950] text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 size={14} className="shrink-0" />
+                  <span>{pwSuccess}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={pwLoading}
+                className="w-full py-3 mt-1 bg-[#00ffcc] text-black font-black text-xs tracking-wider border-2 border-black shadow-[4px_4px_0px_#000] hover:bg-[#00ffd5] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                style={{ borderRadius: 0 }}>
+                {pwLoading ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>UPDATING CREDENTIALS...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={14} />
+                    <span>[ UPDATE PASSWORD & ACCESS WORKSPACE ]</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── FOOTER STATUS BAR ─── */}
       <footer className="relative z-20 w-full bg-[#0a0c10] border-t border-[#1a222e] px-4 py-1.5 flex items-center justify-between text-[9px] font-mono text-[#3d4754]">

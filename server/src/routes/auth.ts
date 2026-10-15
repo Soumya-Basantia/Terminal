@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { AuthRequest, authenticate, generateToken } from '../middleware/auth';
+import { authRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -93,7 +94,7 @@ async function generateUniqueUsername(input: string, fallback: string): Promise<
 
 // ── REGISTRATION (STUDENT & GAME MASTER) ──
 // POST /api/auth/register
-router.post('/register', async (req: Request, res: Response): Promise<void> => {
+router.post('/register', authRateLimiter, async (req: Request, res: Response): Promise<void> => {
   // If explicitly registering as GAME_MASTER via role parameter
   if (req.body.role === 'GAME_MASTER') {
     const gmReg = await getSystemSetting('gm_registration_enabled', 'true');
@@ -302,7 +303,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 
 // ── DEDICATED GAME MASTER REGISTRATION ──
 // POST /api/auth/register-gm
-router.post('/register-gm', async (req: Request, res: Response): Promise<void> => {
+router.post('/register-gm', authRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const gmReg = await getSystemSetting('gm_registration_enabled', 'true');
   if (gmReg === 'false') {
     res.status(403).json({ error: 'Game Master registration is currently disabled by administrator.' });
@@ -376,7 +377,7 @@ router.post('/register-gm', async (req: Request, res: Response): Promise<void> =
 
 // ── LOGIN (STUDENTS, GAME MASTERS, AND ROOT ADMIN) ──
 // POST /api/auth/login
-router.post('/login', async (req: Request, res: Response): Promise<void> => {
+router.post('/login', authRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const parsed = LoginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid input', details: parsed.error.flatten() });
@@ -465,6 +466,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       approvalStatus: user.approvalStatus,
       accountStatus: user.accountStatus,
       isVerified: user.isVerified,
+      mustChangePassword: user.mustChangePassword,
       lastLogin: now,
       lastActivity: now
     },
@@ -477,7 +479,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 
 // ── PROTECTED DEDICATED ADMIN LOGIN (API COMPATIBILITY) ──
 // POST /api/auth/admin/login
-router.post('/admin/login', async (req: Request, res: Response): Promise<void> => {
+router.post('/admin/login', authRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const parsed = AdminLoginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid admin login input', details: parsed.error.flatten() });
@@ -551,6 +553,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise
       approvalStatus: true,
       accountStatus: true,
       isVerified: true,
+      mustChangePassword: true,
       lastLogin: true,
       lastActivity: true,
       profile: true,
@@ -618,11 +621,14 @@ router.post('/change-password', authenticate, async (req: AuthRequest, res: Resp
 
   await prisma.user.update({
     where: { id: userId },
-    data: { passwordHash: newHash },
+    data: {
+      passwordHash: newHash,
+      mustChangePassword: false,
+    },
   });
 
   // NEVER return the hash — return only a success message
-  res.json({ success: true, message: 'Password updated successfully' });
+  res.json({ success: true, message: 'Password updated successfully', mustChangePassword: false });
 });
 
 export default router;

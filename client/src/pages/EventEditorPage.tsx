@@ -62,18 +62,54 @@ export default function EventEditorPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['event', id] }),
   });
 
-  const handleSave = () => saveMutation.mutate({ name, description, mode, status });
+  const [initError, setInitError] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(false);
+
+  const hasUnsavedChanges = Boolean(event && (
+    name !== event.name ||
+    description !== (event.description || '') ||
+    mode !== event.mode ||
+    status !== event.status
+  ));
+
+  const enabledGames = event?.games?.filter((g: any) => g.enabled !== false) || [];
+
+  const handleSave = () => {
+    setInitError(null);
+    saveMutation.mutate({ name, description, mode, status });
+  };
 
   const handleHost = async () => {
+    if (isInitializing) return;
+    setInitError(null);
+
+    if (hasUnsavedChanges) {
+      setInitError('Event has unsaved changes. Please click SAVE before initializing a session.');
+      return;
+    }
+
+    if (status !== 'PUBLISHED') {
+      setInitError('Event Network Status must be set to PUBLISHED and saved before initializing a session.');
+      return;
+    }
+
+    if (enabledGames.length === 0) {
+      setInitError('Event must contain at least one enabled game with valid challenges before initializing a session.');
+      return;
+    }
+
+    setIsInitializing(true);
     try {
-      if (status !== 'PUBLISHED') {
-        alert('Event must be published before creating a session.');
-        return;
-      }
       const res = await api.post('/sessions', { eventId: id });
       navigate(`/sessions/${res.data.session.roomCode}/host`);
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to host session');
+      const preflightErrs = err.response?.data?.preflight?.errors;
+      const msg = preflightErrs && Array.isArray(preflightErrs)
+        ? `Game Preflight Failed: ${preflightErrs.join('; ')}`
+        : err.response?.data?.error || 'Failed to initialize session';
+      setInitError(msg);
+    } finally {
+      setIsInitializing(false);
     }
   };
 
@@ -110,7 +146,7 @@ export default function EventEditorPage() {
         <div className="lg:col-span-12 mb-1">
           <TerminalBackButton
             to={clubId ? `/clubs/${clubId}/events` : '/gm?tab=events'}
-            hasUnsavedChanges={Boolean(event && (name !== event.name || description !== (event.description || '') || mode !== event.mode || status !== event.status))}
+            hasUnsavedChanges={hasUnsavedChanges}
             unsavedMessage="You have unsaved changes in this event. Discard and return to events list?"
           />
         </div>
@@ -127,14 +163,22 @@ export default function EventEditorPage() {
               <p className="font-mono text-[10px] text-[var(--term-text-muted)] mt-1">ID: {event.id}</p>
             </div>
             <div className="flex flex-wrap gap-2.5">
-              <TerminalButton onClick={handleSave} variant="secondary" disabled={saveMutation.isPending} className="min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial">
+              <TerminalButton onClick={handleSave} variant="secondary" disabled={saveMutation.isPending || isInitializing} className="min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial">
                 <Save size={13} /> {saveMutation.isPending ? 'SAVING...' : 'SAVE'}
               </TerminalButton>
-              <TerminalButton onClick={handleHost} variant="primary" disabled={status !== 'PUBLISHED'} className="min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial">
-                <Play size={13} /> INITIALIZE SESSION
+              <TerminalButton onClick={handleHost} variant="primary" disabled={isInitializing || saveMutation.isPending} className="min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial">
+                <Play size={13} /> {isInitializing ? 'INITIALIZING...' : 'INITIALIZE SESSION'}
               </TerminalButton>
             </div>
           </div>
+
+          {/* Validation/Error Feedback Alert */}
+          {initError && (
+            <div className="p-3 bg-[rgba(255,51,102,0.1)] border-2 border-[var(--term-red)] text-[var(--term-red)] font-mono text-xs flex items-center justify-between gap-3">
+              <span>⚠ {initError}</span>
+              <button onClick={() => setInitError(null)} className="text-[10px] uppercase font-bold text-white hover:text-[var(--term-red)]">DISMISS</button>
+            </div>
+          )}
 
           {/* 01. Parameters */}
           <div className="border border-[var(--term-border-muted)] bg-[var(--term-bg-surface)] relative">

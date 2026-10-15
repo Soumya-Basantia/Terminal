@@ -24,9 +24,12 @@ export interface TeamScoreSummary {
     username: string;
     score: number;
   }>;
-  perQuestionScores: Record<string, number>;
+  perQuestionScores: Record<string, number>; // total for question (base average + speed bonus)
+  perQuestionBaseScores: Record<string, number>; // base question average
+  perQuestionSpeedBonus: Record<string, number>; // team speed bonus for question
   baseScore: number;
-  timeBonus: number;
+  speedBonus: number;
+  timeBonus: number; // alias for speedBonus
   finalScore: number;
   rank: number;
 }
@@ -40,9 +43,25 @@ export interface SessionScoresResult {
   };
   teams: TeamScoreSummary[];
   individuals: PlayerScoreSummary[];
-  topTeams: Array<{ name: string; score: number; baseScore: number; timeBonus: number; rank: number }>;
+  topTeams: Array<{
+    name: string;
+    score: number;
+    baseScore: number;
+    speedBonus: number;
+    timeBonus: number;
+    rank: number;
+  }>;
   topIndividuals: Array<{ name: string; score: number; teamName?: string; rank: number }>;
   leaderboard: any[];
+}
+
+/**
+ * Deterministic rounding utility to avoid floating-point display artifacts (e.g. 7.5000000001).
+ * Consistently rounds to at most 1 decimal place.
+ */
+export function roundScore(val: number): number {
+  if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
+  return Math.round((val + Number.EPSILON) * 10) / 10;
 }
 
 /**
@@ -50,22 +69,24 @@ export interface SessionScoresResult {
  *
  * Scoring Rules:
  * 1. Individual Question Score:
- *    - Each student's correct submission scores the challenge points (e.g., 10).
+ *    - Each student's correct submission scores the challenge base points (e.g., 10).
  *    - Incorrect or missing submission scores 0.
  *
  * 2. Team Question Score (Rapid Fire & Quiz):
  *    - Calculated PER QUESTION as the AVERAGE of the individual question scores
- *      of the team members (divided by active team size).
- *    - Example: 4 members scored [10, 10, 0, 10] -> Team question score = 30 / 4 = 7.5.
+ *      of all registered team members in the session.
+ *    - Example: 4 members scored [10, 10, 0, 10] -> Team question base average = 30 / 4 = 7.5.
+ *    - Unanswered or late questions count as 0. Missing or disconnected players
+ *      are NOT removed from the denominator.
  *
- * 3. Base Team Score:
- *    - Sum of the per-question team averages across all questions.
+ * 3. Team-Level Speed Bonus:
+ *    - When speed bonus is enabled, a team earns a server-calculated bonus for answering
+ *      correctly earlier within the time limit or bonus window.
+ *    - Applied at the TEAM LEVEL (not summed across players) to avoid team-size bias.
+ *    - Final question score = base question average + team question speed bonus.
  *
- * 4. Final Time Bonus:
- *    - If speedBonus / time bonus is enabled on the game, a configured bonus (e.g. 10 pts)
- *      is added at the END of the game when session is finalized (ENDED / RESULTS).
- *    - Time bonus is NEVER included in the per-question average.
- *    - FINAL TEAM SCORE = BASE TEAM SCORE + FINAL TIME BONUS.
+ * 4. Final Team Score:
+ *    - FINAL TEAM SCORE = Sum of per-question scores (or BASE SCORE + SPEED BONUS).
  */
 export async function calculateSessionScores(sessionId: string): Promise<SessionScoresResult> {
   const session = await prisma.session.findUnique({
@@ -85,7 +106,7 @@ export async function calculateSessionScores(sessionId: string): Promise<Session
         }
       },
       players: {
-        where: { status: 'ACTIVE' },
+        where: { status: { not: 'BANNED' } },
         include: {
           user: { select: { id: true, username: true, name: true, usn: true } },
           team: { select: { id: true, name: true } }
@@ -111,15 +132,24 @@ export async function calculateSessionScores(sessionId: string): Promise<Session
   const gameConfig = (primaryGame?.config as any) || {};
 
   const timeBonusEnabled = Boolean(primaryGame?.speedBonus || gameConfig.timeBonusEnabled || gameConfig.speedBonus);
-  const timeBonusPoints = Number(gameConfig.timeBonusPoints ?? (timeBonusEnabled ? 10 : 0));
+  const completionBonusPoints = Number(gameConfig.timeBonusPoints ?? 0);
+  const maxSpeedBonusSetting = gameConfig.maxSpeedBonus ?? gameConfig.maxBonus;
+  const hasQuestionSpeedBonus = timeBonusEnabled && (
+    maxSpeedBonusSetting !== undefined ||
+    completionBonusPoints === 0 ||
+    gameConfig.speedBonusMode === 'QUESTION' ||
+    gameConfig.speedBonusType === 'PER_QUESTION'
+  );
   const isGameFinished = session.status === 'ENDED' || session.status === 'RESULTS';
 
   const timeBonusConfig = {
     enabled: timeBonusEnabled,
-    points: timeBonusPoints,
+    points: hasQuestionSpeedBonus ? (Number(maxSpeedBonusSetting) || 5) : completionBonusPoints,
     ruleDescription: timeBonusEnabled
-      ? `+${timeBonusPoints} PTS Final Completion Time Bonus added upon game finalization`
-      : 'Time bonus disabled'
+      ? (hasQuestionSpeedBonus
+          ? `Speed Bonus enabled: up to ${Number(maxSpeedBonusSetting) || 5} PTS awarded per question for fast correct team responses`
+          : `+${completionBonusPoints} PTS Final Completion Time Bonus added upon game finalization`)
+      : 'Speed bonus disabled'
   };
 
   // Collect all challenges associated with current game / event
@@ -163,10 +193,10 @@ export async function calculateSessionScores(sessionId: string): Promise<Session
     });
   }
 
-  // 2. Calculate Team Scores with Per-Question Averaging
+  // 2. Calculate Team Scores with Stable Team Denominator & Speed Bonus
   const teamMap = new Map<string, TeamScoreSummary>();
 
-  // Identify all distinct teams among active players
+  // Identify all distinct teams among non-banned players
   for (const sp of session.players) {
     if (!sp.teamId || !sp.team) continue;
     if (!teamMap.has(sp.teamId)) {
@@ -176,7 +206,10 @@ export async function calculateSessionScores(sessionId: string): Promise<Session
         membersCount: 0,
         members: [],
         perQuestionScores: {},
+        perQuestionBaseScores: {},
+        perQuestionSpeedBonus: {},
         baseScore: 0,
+        speedBonus: 0,
         timeBonus: 0,
         finalScore: 0,
         rank: 1
@@ -199,38 +232,87 @@ export async function calculateSessionScores(sessionId: string): Promise<Session
     }
   }
 
-  // Compute per-question average for each team
+  // Compute per-question average and team speed bonus for each team
   for (const team of teamMap.values()) {
     const teamPlayerIds = team.members.map(m => m.playerId);
     const teamSize = Math.max(team.membersCount, 1);
     let accumulatedBase = 0;
+    let accumulatedSpeedBonus = 0;
 
     for (const ch of challenges) {
-      // Find submission for each member on this question
       let questionSum = 0;
+      const correctSubs: Array<{ playerId: string; responseTime: number }> = [];
+
       for (const pId of teamPlayerIds) {
         const sub = submissions.find(s => s.playerId === pId && s.challengeId === ch.id);
-        if (sub) {
-          questionSum += sub.score || 0;
+        if (sub && sub.isCorrect) {
+          const pts = (typeof sub.score === 'number' && sub.score > 0) ? sub.score : ch.points;
+          questionSum += pts;
+          correctSubs.push({
+            playerId: pId,
+            responseTime: Math.max(0, sub.responseTime || 0)
+          });
         }
       }
 
-      // Average = questionSum / teamSize
-      const questionAvg = Math.round((questionSum / teamSize) * 10) / 10;
-      team.perQuestionScores[ch.id] = questionAvg;
+      // Base Average: SUM(correct member scores) / teamSize
+      const questionAvg = roundScore(questionSum / teamSize);
+      team.perQuestionBaseScores[ch.id] = questionAvg;
+
+      // Question Speed Bonus: calculated at the TEAM level
+      let qSpeedBonus = 0;
+      const qTimeLimit = Number(ch.timeLimit || (ch.config as any)?.timerSecs || (ch.config as any)?.timeLimit || 0);
+      const qTimeLimitMs = qTimeLimit * 1000;
+      const bonusWindowSecs = Number(gameConfig.speedBonusWindow || 0);
+      const windowMs = bonusWindowSecs > 0 ? Math.min(qTimeLimitMs, bonusWindowSecs * 1000) : qTimeLimitMs;
+
+      let maxBonusForQ = 0;
+      if (hasQuestionSpeedBonus && windowMs > 0) {
+        if (maxSpeedBonusSetting !== undefined && !isNaN(Number(maxSpeedBonusSetting))) {
+          maxBonusForQ = Math.max(0, Number(maxSpeedBonusSetting));
+        } else {
+          maxBonusForQ = roundScore(ch.points * 0.5) || 5;
+        }
+      }
+
+      if (hasQuestionSpeedBonus && maxBonusForQ > 0 && correctSubs.length > 0 && windowMs > 0) {
+        // Average speed ratio of correct team responders
+        const sumRatios = correctSubs.reduce((acc, sub) => {
+          const respTime = sub.responseTime;
+          if (respTime < windowMs) {
+            return acc + (windowMs - respTime) / windowMs;
+          }
+          return acc;
+        }, 0);
+        const avgRatio = Math.max(0, Math.min(1, sumRatios / correctSubs.length));
+        qSpeedBonus = roundScore(maxBonusForQ * avgRatio);
+      }
+
+      team.perQuestionSpeedBonus[ch.id] = qSpeedBonus;
+      team.perQuestionScores[ch.id] = roundScore(questionAvg + qSpeedBonus);
+
       accumulatedBase += questionAvg;
+      accumulatedSpeedBonus += qSpeedBonus;
     }
 
-    team.baseScore = Math.round(accumulatedBase * 10) / 10;
+    team.baseScore = roundScore(accumulatedBase);
 
-    // Apply time bonus only at the end if enabled
-    const finalBonus = (timeBonusEnabled && isGameFinished) ? timeBonusPoints : 0;
-    team.timeBonus = finalBonus;
-    team.finalScore = Math.round((team.baseScore + finalBonus) * 10) / 10;
+    // Apply end-of-game completion bonus if configured
+    const finalCompletionBonus = (timeBonusEnabled && isGameFinished && completionBonusPoints > 0)
+      ? completionBonusPoints
+      : 0;
+
+    team.speedBonus = roundScore(accumulatedSpeedBonus + finalCompletionBonus);
+    team.timeBonus = team.speedBonus;
+    team.finalScore = roundScore(team.baseScore + team.speedBonus);
   }
 
-  // 3. Rank Teams (descending by finalScore)
-  const rankedTeams = Array.from(teamMap.values()).sort((a, b) => b.finalScore - a.finalScore);
+  // 3. Rank Teams (descending by finalScore, then baseScore, then speedBonus)
+  const rankedTeams = Array.from(teamMap.values()).sort((a, b) => {
+    if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
+    if (b.baseScore !== a.baseScore) return b.baseScore - a.baseScore;
+    return b.speedBonus - a.speedBonus;
+  });
   rankedTeams.forEach((t, i) => {
     t.rank = i + 1;
   });
@@ -245,8 +327,12 @@ export async function calculateSessionScores(sessionId: string): Promise<Session
     name: t.teamName,
     score: t.finalScore,
     baseScore: t.baseScore,
+    speedBonus: t.speedBonus,
     timeBonus: t.timeBonus,
-    rank: t.rank
+    rank: t.rank,
+    perQuestionScores: t.perQuestionScores,
+    perQuestionBaseScores: t.perQuestionBaseScores,
+    perQuestionSpeedBonus: t.perQuestionSpeedBonus
   }));
 
   const topIndividuals = rankedIndividuals.slice(0, 10).map(p => ({

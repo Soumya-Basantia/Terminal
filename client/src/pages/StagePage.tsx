@@ -27,18 +27,19 @@ const StageTimer = ({ startTime, timeLimit }: { startTime: any, timeLimit?: numb
   return <>{timeLeft}</>;
 };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function StagePage() {
   const { sessionCode } = useParams<{ sessionCode: string }>();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [sessionData, setSessionData] = useState<any>(null);
   const [connected, setConnected] = useState(false);
+  const [stageViewTab, setStageViewTab] = useState<'REVIEW' | 'LEADERBOARD'>('REVIEW');
 
   useEffect(() => {
     if (!sessionCode) return;
 
-    const newSocket = io(API_URL, {
+    const newSocket = io(SOCKET_URL, {
       auth: { isStage: true }
     });
 
@@ -73,18 +74,21 @@ export default function StagePage() {
   }
 
   const { session, event, currentGame, playerCount, teamCount } = sessionData;
+  const isReviewRevealed = Boolean(sessionData?.isReviewRevealed || session?.isReviewRevealed);
   const stageModeByStatus: Record<string, string> = {
     LOBBY: 'LOBBY',
     STARTING: 'ANNOUNCEMENT',
     ROUND_ACTIVE: 'QUESTION',
-    ROUND_LOCKED: 'ANSWER_REVEAL',
+    ROUND_LOCKED: 'QUESTION',
     RESULTS: 'LEADERBOARD',
     ENDED: 'FINAL_RESULTS',
     QUESTION_ACTIVE: 'QUESTION',
-    QUESTION_LOCKED: 'ANSWER_REVEAL',
+    QUESTION_LOCKED: 'QUESTION',
     QUESTION_RESULTS: 'LEADERBOARD',
   };
-  const stageMode = session.stageMode && session.stageMode !== 'LOBBY' ? session.stageMode : stageModeByStatus[session.status] || 'LOBBY';
+  const stageMode = isReviewRevealed
+    ? 'REVIEW_MODE'
+    : (session.stageMode && session.stageMode !== 'LOBBY' ? session.stageMode : stageModeByStatus[session.status] || 'LOBBY');
 
   const renderLobby = () => (
     <div className="text-center flex flex-col items-center w-full max-w-5xl mx-auto px-2">
@@ -1298,7 +1302,11 @@ export default function StagePage() {
             
             <div className="flex flex-col sm:flex-row justify-between mt-6 sm:mt-12 items-center gap-4">
               <div className="text-4xl sm:text-6xl md:text-7xl lg:text-[clamp(3.5rem,7vw,7rem)] font-black font-mono text-[var(--accent-primary)] drop-shadow-[0_0_20px_rgba(0,255,204,0.3)]">
-                <StageTimer startTime={session.challengeStartTime} timeLimit={challenge.timeLimit} />
+                {session.status === 'QUESTION_LOCKED' ? (
+                  <span className="text-[#ff3366]">TIME UP // LOCKED</span>
+                ) : (
+                  <StageTimer startTime={session.challengeStartTime} timeLimit={challenge.timeLimit} />
+                )}
               </div>
               <div className="text-lg sm:text-3xl md:text-5xl font-mono text-[var(--text-secondary)]">
                 <strong className="text-[var(--accent-primary)] text-2xl sm:text-4xl md:text-[4rem] mr-2 sm:mr-4">{sessionData.answersCount || 0}</strong> / {playerCount} ANSWERED
@@ -1310,29 +1318,147 @@ export default function StagePage() {
     );
   };
 
-  const renderAnswerReveal = () => {
-    const challenge = currentGame?.challenges?.find((c: any) => c.id === session.currentChallengeId);
-    if (!challenge) return <div>No active challenge</div>;
+  const renderReviewMode = () => {
+    const reviewIdx = Number(sessionData?.reviewQuestionIndex ?? session?.reviewQuestionIndex ?? 0);
+    const challenges = currentGame?.challenges || [];
+    const totalQ = challenges.length || 1;
+    const reviewChallenge = sessionData?.reviewChallenge || challenges[reviewIdx] || null;
 
-    const correctIdx = challenge.options?.findIndex((o: string) => o === challenge.answer);
-    
+    if (!isReviewRevealed || !reviewChallenge) {
+      return (
+        <div className="w-full max-w-5xl mx-auto text-center px-2">
+          <StagePanel>
+            <div className="text-2xl text-[var(--warning)] font-mono">
+              STANDBY FOR AUTHORIZED REVIEW PAYLOAD...
+            </div>
+          </StagePanel>
+        </div>
+      );
+    }
+
+    const options = reviewChallenge.options || [];
+    const correctAnswer = reviewChallenge.correctAnswer;
+    const explanation = reviewChallenge.explanation;
+
     return (
-      <div className="w-full max-w-5xl mx-auto text-center px-2">
-        <h2 className="text-xl sm:text-3xl md:text-5xl text-[var(--text-muted)] font-mono tracking-widest mb-6 sm:mb-12">ANSWERS LOCKED</h2>
-        
-        <StagePanel>
-          <h1 className="text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-black text-[var(--success)] mb-4 sm:mb-8 drop-shadow-[0_0_15px_rgba(63,185,80,0.4)]">CORRECT ANSWER</h1>
-          
-          <div className="text-5xl sm:text-7xl md:text-9xl lg:text-[10rem] font-black font-mono text-[var(--success)] my-4 sm:my-8 md:my-12 drop-shadow-[0_0_30px_rgba(63,185,80,0.6)]">
-            {correctIdx !== -1 ? String.fromCharCode(65 + correctIdx) : 'N/A'}
+      <div className="w-full max-w-[95vw] mx-auto px-2 font-mono">
+        {/* Header with Projector Review Info and Toggle Leaderboard */}
+        <div className="flex flex-col sm:flex-row justify-between mb-6 sm:mb-8 border-b-2 border-[var(--border-subtle)] pb-4 sm:pb-6 items-start sm:items-end gap-3">
+          <div className="text-left">
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 bg-[rgba(0,255,204,0.15)] text-[var(--accent-primary)] border border-[var(--accent-primary)] font-black text-xs sm:text-base">
+                REVIEW MODE // PROJECTOR STAGE
+              </span>
+              <span className="px-3 py-1 bg-[rgba(63,185,80,0.2)] text-[var(--success)] border border-[var(--success)] font-black text-xs sm:text-base">
+                ✓ ANSWERS &amp; EXPLANATIONS REVEALED
+              </span>
+            </div>
+            <div className="text-xl sm:text-3xl md:text-4xl font-black text-white mt-2 uppercase">
+              {currentGame?.name || 'TERMINAL QUIZ'}
+            </div>
           </div>
-          
-          <div className="text-lg sm:text-3xl md:text-5xl lg:text-6xl bg-[rgba(63,185,80,0.15)] border-2 border-[var(--success)] p-4 sm:p-8 md:p-12 inline-block font-sans font-bold shadow-[0_0_20px_rgba(63,185,80,0.2)] max-w-full break-words">
-            {challenge.answer}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setStageViewTab(prev => prev === 'LEADERBOARD' ? 'REVIEW' : 'LEADERBOARD')}
+              className="px-4 py-2 bg-[#fcee0a] hover:bg-[#fff033] text-black font-black text-xs sm:text-sm border-2 border-black shadow-[2px_2px_0px_#000] cursor-pointer">
+              {stageViewTab === 'LEADERBOARD' ? '📋 SHOW REVIEW QUESTION' : '🏆 SHOW FINAL LEADERBOARD'}
+            </button>
+            <div className="text-base sm:text-2xl md:text-3xl text-[var(--accent-secondary)] font-bold">
+              QUESTION {reviewIdx + 1} / {totalQ}
+            </div>
           </div>
-        </StagePanel>
+        </div>
+
+        {stageViewTab === 'LEADERBOARD' ? (
+          renderLeaderboard()
+        ) : (
+          <div className="flex flex-col gap-6">
+            {/* Question Prompt */}
+            <StagePanel>
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <span className="text-xs sm:text-sm text-[var(--accent-primary)] font-bold uppercase tracking-wider">
+                  QUESTION PROMPT:
+                </span>
+                {reviewChallenge.category && (
+                  <span className="px-2 py-0.5 bg-[#121822] text-[#a855f7] border border-[#a855f7] font-bold text-xs uppercase">
+                    {reviewChallenge.category}
+                  </span>
+                )}
+                {reviewChallenge.points && (
+                  <span className="px-2 py-0.5 bg-[#121822] text-[#fcee0a] border border-[#fcee0a] font-bold text-xs">
+                    {reviewChallenge.points} PTS
+                  </span>
+                )}
+              </div>
+              <h1 className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold leading-relaxed whitespace-pre-wrap text-white text-left">
+                {reviewChallenge.prompt}
+              </h1>
+            </StagePanel>
+
+            {/* Answer Choices Grid */}
+            {options.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
+                {options.map((opt: string, i: number) => {
+                  const letter = String.fromCharCode(65 + i);
+                  const isCorrect = Array.isArray(correctAnswer)
+                    ? correctAnswer.includes(letter) || correctAnswer.includes(opt)
+                    : correctAnswer === letter || correctAnswer === opt;
+
+                  return (
+                    <div
+                      key={i}
+                      className={`p-4 sm:p-6 md:p-8 text-sm sm:text-xl md:text-2xl border-2 flex items-center justify-between min-w-0 transition-all ${
+                        isCorrect
+                          ? 'bg-[rgba(63,185,80,0.18)] border-[var(--success)] shadow-[0_0_24px_rgba(63,185,80,0.35)]'
+                          : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] opacity-50'
+                      }`}
+                    >
+                      <div className="flex items-center min-w-0">
+                        <strong className={`mr-3 sm:mr-5 font-mono text-xl sm:text-3xl md:text-4xl shrink-0 ${
+                          isCorrect ? 'text-[var(--success)] font-black' : 'text-[var(--text-muted)]'
+                        }`}>
+                          {letter}.
+                        </strong>
+                        <span className={`break-words font-sans font-bold ${isCorrect ? 'text-white' : 'text-[var(--text-secondary)]'}`}>
+                          {opt}
+                        </span>
+                      </div>
+                      {isCorrect && (
+                        <span className="px-3 py-1 bg-[var(--success)] text-black font-black text-xs sm:text-sm uppercase tracking-wider shrink-0 ml-3">
+                          ✓ CORRECT
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Explanation Display Box directly below the answer */}
+            {explanation && (
+              <StagePanel className="border-2 border-[var(--accent-primary)] shadow-[0_0_30px_rgba(0,255,204,0.25)] text-left bg-[rgba(0,255,204,0.05)]">
+                <div className="flex items-center gap-2 mb-3 text-[var(--accent-primary)] text-sm sm:text-lg font-black tracking-widest uppercase">
+                  <span>💡</span>
+                  <span>LOGIC EXPLANATION &amp; CODE WALKTHROUGH:</span>
+                </div>
+                <p className="text-white text-base sm:text-xl md:text-2xl font-sans leading-relaxed whitespace-pre-wrap">
+                  {explanation}
+                </p>
+              </StagePanel>
+            )}
+          </div>
+        )}
       </div>
     );
+  };
+
+  const renderAnswerReveal = () => {
+    // If review is revealed post-game, render dedicated review mode
+    if (isReviewRevealed) {
+      return renderReviewMode();
+    }
+    // During active gameplay, never leak the answer!
+    return renderQuestion();
   };
 
   const renderLeaderboard = () => {
@@ -1412,12 +1538,35 @@ export default function StagePage() {
 
   return (
     <div className="min-h-screen w-full bg-[var(--bg-base)] text-white flex flex-col overflow-x-hidden scanlines grid-overlay relative">
-      <div className={`absolute top-3 right-3 sm:top-6 sm:right-6 flex items-center gap-2 sm:gap-3 text-xs sm:text-base md:text-xl font-bold font-mono z-50 ${connected ? 'text-[var(--success)]' : 'text-[var(--error)]'}`}>
-        <div className={`w-2.5 sm:w-4 h-2.5 sm:h-4 rounded-full ${connected ? 'bg-[var(--success)] shadow-[0_0_15px_var(--success)]' : 'bg-[var(--error)] shadow-[0_0_15px_var(--error)]'}`} />
-        {connected ? 'LIVE' : 'RECONNECTING'}
+      <div className="absolute top-3 right-3 sm:top-6 sm:right-6 flex items-center gap-2 sm:gap-3 font-mono z-50">
+        <button
+          onClick={() => {
+            if (!document.fullscreenElement) {
+              document.documentElement.requestFullscreen?.().catch(() => {});
+            } else {
+              document.exitFullscreen?.().catch(() => {});
+            }
+          }}
+          className="px-2.5 py-1 bg-[#0f141c]/80 hover:bg-[#161c24] text-[#8b99aa] hover:text-[#00ffcc] border border-[#2d3848] text-[10px] sm:text-xs font-bold transition-all cursor-pointer"
+          title="Toggle Fullscreen"
+        >
+          [⛶ FULLSCREEN]
+        </button>
+        <a
+          href={`/sessions/${sessionCode}/host`}
+          className="px-2.5 py-1 bg-[#0f141c]/80 hover:bg-[#161c24] text-[#8b99aa] hover:text-[#00ffcc] border border-[#2d3848] text-[10px] sm:text-xs font-bold transition-all cursor-pointer"
+          title="Return to Host Dashboard"
+        >
+          [HOST DASHBOARD]
+        </a>
+        <div className={`flex items-center gap-1.5 text-xs sm:text-sm font-bold ${connected ? 'text-[var(--success)]' : 'text-[var(--error)]'}`}>
+          <div className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-[var(--success)] shadow-[0_0_12px_var(--success)]' : 'bg-[var(--error)] shadow-[0_0_12px_var(--error)]'}`} />
+          <span>{connected ? 'LIVE' : 'RECONNECTING'}</span>
+        </div>
       </div>
 
       <div className="flex-1 flex items-center justify-center p-3 sm:p-6 md:p-10 lg:p-16 relative z-10 overflow-x-hidden w-full max-w-full">
+        {stageMode === 'REVIEW_MODE' && renderReviewMode()}
         {stageMode === 'LOBBY' && renderLobby()}
         {stageMode === 'ANNOUNCEMENT' && renderAnnouncement()}
         {stageMode === 'COUNTDOWN' && renderCountdown()}

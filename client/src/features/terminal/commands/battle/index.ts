@@ -2,7 +2,6 @@ import type { CommandDefinition } from '../../core/types';
 import { commandRegistry } from '../../core/registry';
 import React from 'react';
 import { TerminalSection, TerminalText, TerminalError, TerminalSuccess } from '../../components/outputs';
-import { BattleLobby } from './BattleLobby';
 
 export const battleCommand: CommandDefinition = {
   name: 'battle',
@@ -34,11 +33,25 @@ export const battleCommand: CommandDefinition = {
       return React.createElement(TerminalError, null, `Invalid room code '${cleanCode}'. Room codes are typically 4-8 characters.`);
     }
 
-    ctx.openPanel?.('battle', { roomCode: cleanCode });
+    // Navigate to the full lobby → gameplay flow
+    // LobbyPage handles: waiting for GM to start → auto-redirect to /play/:sessionCode
+    if (ctx.navigate) {
+      // Brief feedback before navigating
+      setTimeout(() => {
+        ctx.navigate!(`/lobby/${cleanCode}`);
+      }, 300);
+    } else {
+      // Fallback: direct browser navigation
+      setTimeout(() => {
+        window.location.href = `/lobby/${cleanCode}`;
+      }, 300);
+    }
+
     return React.createElement('div', { className: 'font-mono text-xs my-1' },
-      React.createElement(TerminalSection, { title: `CONNECTING TO ARENA // ${cleanCode}` }),
-      React.createElement(TerminalText, { className: 'text-cyan-300 font-bold ml-2', children: `Connecting student socket to room: ${cleanCode}...` }),
-      React.createElement(TerminalText, { className: 'text-zinc-500 text-[11px] ml-2', children: 'Arena lobby opened in side panel.' })
+      React.createElement(TerminalSection, { title: `LAUNCHING ARENA // ${cleanCode}` }),
+      React.createElement(TerminalText, { className: 'text-cyan-300 font-bold ml-2', children: `Connecting to battle arena: ${cleanCode}...` }),
+      React.createElement(TerminalText, { className: 'text-emerald-400 ml-2', children: '> Joining lobby — awaiting Game Master...' }),
+      React.createElement(TerminalText, { className: 'text-zinc-500 text-[11px] ml-2', children: 'Redirecting to arena lobby...' })
     );
   }
 };

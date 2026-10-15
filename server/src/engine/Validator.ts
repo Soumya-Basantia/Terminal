@@ -133,7 +133,11 @@ export class Validator {
           const parsed = JSON.parse(actual);
           actual = Array.isArray(parsed) ? parsed : [actual];
         } catch {
-          actual = [actual];
+          if (actual.includes(',')) {
+            actual = actual.split(',').map((s: string) => s.trim()).filter(Boolean);
+          } else {
+            actual = [actual];
+          }
         }
       }
       if (!Array.isArray(expected) || !Array.isArray(actual)) return { isCorrect: false };
@@ -2582,21 +2586,17 @@ export interface BugHuntValidationDetails {
 
 export function validateChallengeAnswer(challenge: any, answer: any): boolean {
   const config = challenge.config || {};
-  let isCorrect = false;
   
-  if (challenge.type === 'MULTIPLE_CHOICE' || challenge.type === 'MULTI_CHOICE') {
-    let submitted: string[] = [];
-    if (Array.isArray(answer)) {
-      submitted = answer.slice(0, 20).map(String).map(s => s.substring(0, 100)).sort();
-    }
-    const correct = Array.isArray(config.answer) ? (config.answer as string[]).sort() : [];
-    isCorrect = submitted.length === correct.length && submitted.every((v, i) => v === correct[i]);
+  if (challenge.type === 'MULTIPLE_CHOICE' || challenge.type === 'MULTI_CHOICE' || Array.isArray(config.answer)) {
+    return Validator.validate('MULTI_SELECT', { challengeConfig: config, submission: answer }).isCorrect;
   } else if (challenge.type === 'STATE_TRANSITION') {
     const expected = JSON.stringify(config.finalState);
     const actual = JSON.stringify(answer);
-    isCorrect = expected === actual;
+    return expected === actual;
   } else {
-    isCorrect = String(answer || '').trim().substring(0, 255).toLowerCase() === String(config.answer).toLowerCase();
+    return Validator.validate('EXACT', { 
+      challengeConfig: config, 
+      submission: typeof answer === 'object' ? JSON.stringify(answer) : String(answer || '') 
+    }).isCorrect;
   }
-  return isCorrect;
 }

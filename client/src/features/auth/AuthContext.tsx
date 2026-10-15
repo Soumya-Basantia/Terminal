@@ -10,6 +10,7 @@ interface AuthContextType {
   /** identifier: any of USN, email, username, or 'root'. Role is resolved by the server. */
   login: (identifier: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (partial: Partial<User>) => void;
   isLoading: boolean;
 }
 
@@ -21,13 +22,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('terminal_token');
-    const storedUser = localStorage.getItem('terminal_user');
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+    let storedToken: string | null = null;
+    let storedUser: string | null = null;
+    try {
+      storedToken = sessionStorage.getItem('terminal_token') || localStorage.getItem('terminal_token');
+      storedUser = sessionStorage.getItem('terminal_user') || localStorage.getItem('terminal_user');
+    } catch {}
+
+    if (!storedToken) {
+      setIsLoading(false);
+      return;
     }
-    setIsLoading(false);
+
+    // Set optimistic token for outgoing requests
+    setToken(storedToken);
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {}
+    }
+
+    // Verify token validity with server (/api/auth/me) to prevent stale authentication
+    api.get('/auth/me', { headers: { Authorization: `Bearer ${storedToken}` } })
+      .then((res) => {
+        const verifiedUser = res.data?.user;
+        if (verifiedUser) {
+          setUser(verifiedUser);
+          setToken(storedToken);
+          try {
+            sessionStorage.setItem('terminal_token', storedToken!);
+            sessionStorage.setItem('terminal_user', JSON.stringify(verifiedUser));
+            localStorage.setItem('terminal_user', JSON.stringify(verifiedUser));
+          } catch {}
+        } else {
+          throw new Error('User payload empty');
+        }
+      })
+      .catch(() => {
+        // Stale or revoked credentials — clear auth state cleanly
+        setUser(null);
+        setToken(null);
+        try {
+          sessionStorage.removeItem('terminal_token');
+          sessionStorage.removeItem('terminal_user');
+          sessionStorage.removeItem('terminal_player');
+          sessionStorage.removeItem('token');
+        } catch {}
+        localStorage.removeItem('terminal_token');
+        localStorage.removeItem('terminal_user');
+        localStorage.removeItem('terminal_player');
+        localStorage.removeItem('token');
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
 
   /**
@@ -43,8 +91,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { user: u, token: t } = response.data;
     setUser(u);
     setToken(t);
+    try {
+      sessionStorage.setItem('terminal_token', t);
+      sessionStorage.setItem('terminal_user', JSON.stringify(u));
+    } catch {}
     localStorage.setItem('terminal_token', t);
     localStorage.setItem('terminal_user', JSON.stringify(u));
+  }, []);
+
+  const updateUser = useCallback((partial: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...partial };
+      try {
+        sessionStorage.setItem('terminal_user', JSON.stringify(updated));
+      } catch {}
+      localStorage.setItem('terminal_user', JSON.stringify(updated));
+      return updated;
+    });
   }, []);
 
   const logout = useCallback(() => {
@@ -53,18 +117,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
     setUser(null);
     setToken(null);
+    try {
+      sessionStorage.removeItem('terminal_token');
+      sessionStorage.removeItem('terminal_user');
+      sessionStorage.removeItem('terminal_player');
+      sessionStorage.removeItem('token');
+      sessionStorage.clear();
+    } catch {}
     localStorage.removeItem('terminal_token');
     localStorage.removeItem('terminal_user');
     localStorage.removeItem('terminal_player');
     localStorage.removeItem('token');
-    try {
-      sessionStorage.clear();
-    } catch {}
     window.location.href = '/login';
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -3,10 +3,11 @@ import { prisma } from '../lib/prisma';
 import { deriveStageModeFromStatus, getSessionState, purgeGameSessionChat } from '../services/sessionService';
 import { canTransition, applySessionTransition, startQuestion, finalizeSession, getChallengeForLiveSession, selectGameForSession } from '../services/sessionLifecycle';
 import { startQuestionSweep } from '../services/questionSweep';
+import { calculateSessionScores } from '../services/scoringService';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import path from 'path';
-import { checkEventAuthorization } from '../utils/authorization';
+import { checkEventAuthorization, checkSessionHostAuthorization } from '../utils/authorization';
 
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
@@ -75,31 +76,28 @@ export function setupSocketHandlers(io: Server): void {
       const isFirstSocket = addUserSocket(userId, socket.id);
 
       // Auto-join active team room if player belongs to a team.
-      // Fire-and-forget: ALL event listeners below are registered
-      // SYNCHRONOUSLY so a client's first emits (especially websocket-only
-      // connections after a polling→websocket upgrade) can never race
-      // listener registration and get silently dropped.
-      if (isFirstSocket) {
-        void (async () => {
-          try {
-            const membership = await prisma.teamMember.findFirst({
-              where: { userId },
-              include: { user: { select: { username: true } }, team: true }
-            });
-            if (membership) {
-              socket.join(`team:${membership.teamId}`);
-              socket.data.teamId = membership.teamId;
+      // Every connected socket for this user must join the team room to receive team chat.
+      void (async () => {
+        try {
+          const membership = await prisma.teamMember.findFirst({
+            where: { userId },
+            include: { user: { select: { username: true } }, team: true }
+          });
+          if (membership) {
+            socket.join(`team:${membership.teamId}`);
+            socket.data.teamId = membership.teamId;
+            if (isFirstSocket) {
               io.to(`team:${membership.teamId}`).emit('team:presence', {
                 userId,
                 handle: `${membership.user.username}@terminal`,
                 status: 'ONLINE'
               });
             }
-          } catch (err) {
-            console.error('Error auto-joining team room:', err);
           }
-        })();
-      }
+        } catch (err) {
+          console.error('Error auto-joining team room:', err);
+        }
+      })();
     }
 
     // ── HOST JOINS ───────────────────────────────────────────────────────
@@ -122,7 +120,7 @@ export function setupSocketHandlers(io: Server): void {
         return;
       }
 
-      const isAuthorized = await checkEventAuthorization(session.eventId, userId);
+      const isAuthorized = await checkSessionHostAuthorization(session, userId);
       if (!isAuthorized) {
         socket.emit('error', { message: 'Not authorized for this session' });
         return;
@@ -134,57 +132,120 @@ export function setupSocketHandlers(io: Server): void {
 
       const state = await getSessionState(code);
       socket.emit('session_state_update', state);
+
+      try {
+        const scores = await calculateSessionScores(session.id);
+        socket.emit('leaderboard:update', {
+          roomCode: code,
+          revision: Date.now(),
+          isTeamGame: scores.isTeamGame,
+          teamLeaderboard: scores.teams,
+          individualLeaderboard: scores.individuals,
+          timeBonusConfig: scores.timeBonusConfig,
+        });
+      } catch (err) {
+        console.error('[Host] Error computing initial leaderboard:', err);
+      }
       console.log(`[Host] ${userId} joined session ${code}`);
     });
 
     // ── PLAYER JOINS ─────────────────────────────────────────────────────
     socket.on('player:join', async (data: { roomCode?: string; sessionCode?: string }) => {
-      const roomCode = data?.roomCode || data?.sessionCode;
-      if (!roomCode) {
-        socket.emit('error', { message: 'roomCode is required' });
-        return;
-      }
-      const userId = socket.data.userId;
-      const code = String(roomCode).toUpperCase();
-
-      const sessionPlayer = await prisma.sessionPlayer.findFirst({
-        where: {
-          session: { roomCode: code },
-          userId: userId
-        },
-        include: { session: true }
-      });
-
-      if (!sessionPlayer) {
-        socket.emit('error', { message: 'Player not found in this session' });
-        return;
-      }
-
-      socket.join(`session:${code}`);
-      socket.data.role = 'PLAYER';
-      socket.data.roomCode = code;
-      socket.data.sessionId = sessionPlayer.sessionId;
-      socket.data.sessionPlayerId = sessionPlayer.id;
-
-      // Ensure status is active and team is linked if member
-      const teamUpdateData: any = { status: 'ACTIVE' };
-      if (!sessionPlayer.teamId) {
-        const teamMember = await prisma.teamMember.findFirst({
-          where: { userId }
-        });
-        if (teamMember) {
-          teamUpdateData.teamId = teamMember.teamId;
+      try {
+        const roomCode = data?.roomCode || data?.sessionCode;
+        if (!roomCode) {
+          socket.emit('error', { message: 'roomCode is required' });
+          return;
         }
-      }
+        const userId = socket.data.userId;
+        const code = String(roomCode).toUpperCase();
 
-      await prisma.sessionPlayer.update({
-        where: { id: sessionPlayer.id },
-        data: teamUpdateData
-      });
+        let sessionPlayer = await prisma.sessionPlayer.findFirst({
+          where: {
+            session: { roomCode: code },
+            userId: userId
+          },
+          include: { session: true }
+        });
 
-      // Notify everyone of state change
-      const state = await getSessionState(code);
-      io.to(`session:${code}`).emit('session_state_update', state);
+        if (!sessionPlayer && userId) {
+          const session = await prisma.session.findUnique({
+            where: { roomCode: code }
+          });
+          if (session && session.status !== 'ENDED') {
+            try {
+              sessionPlayer = await prisma.sessionPlayer.upsert({
+                where: {
+                  sessionId_userId: { sessionId: session.id, userId }
+                },
+                update: { status: 'ACTIVE' },
+                create: { sessionId: session.id, userId, status: 'ACTIVE' },
+                include: { session: true }
+              });
+            } catch {
+              sessionPlayer = await prisma.sessionPlayer.findFirst({
+                where: {
+                  sessionId: session.id,
+                  userId: userId
+                },
+                include: { session: true }
+              });
+            }
+          }
+        }
+
+        if (!sessionPlayer) {
+          socket.emit('error', { message: 'Player not found in this session' });
+          return;
+        }
+
+        socket.join(`session:${code}`);
+        socket.data.role = 'PLAYER';
+        socket.data.roomCode = code;
+        socket.data.sessionId = sessionPlayer.sessionId;
+        socket.data.sessionPlayerId = sessionPlayer.id;
+
+        // Authoritative teams mode check
+        const sessSnapshot: any = (sessionPlayer.session as any)?.snapshot || null;
+        let isSessionTeamsMode = sessSnapshot?.teamsEnabled !== undefined
+          ? Boolean(sessSnapshot.teamsEnabled)
+          : false;
+        if (!sessSnapshot && sessionPlayer.session?.currentGameId) {
+          const g = await prisma.game.findUnique({
+            where: { id: sessionPlayer.session.currentGameId },
+            select: { teamsEnabled: true }
+          });
+          isSessionTeamsMode = Boolean(g?.teamsEnabled);
+        }
+
+        // Ensure status is active and team is linked if member in teams mode
+        const teamUpdateData: any = { status: 'ACTIVE' };
+        if (isSessionTeamsMode) {
+          if (!sessionPlayer.teamId) {
+            const teamMember = await prisma.teamMember.findFirst({
+              where: { userId }
+            });
+            if (teamMember) {
+              teamUpdateData.teamId = teamMember.teamId;
+              socket.join(`team:${teamMember.teamId}`);
+              socket.data.teamId = teamMember.teamId;
+            }
+          } else {
+            socket.join(`team:${sessionPlayer.teamId}`);
+            socket.data.teamId = sessionPlayer.teamId;
+          }
+        }
+
+        try {
+          await prisma.sessionPlayer.update({
+            where: { id: sessionPlayer.id },
+            data: teamUpdateData
+          });
+        } catch {}
+
+        // Notify everyone of state change
+        const state = await getSessionState(code);
+        io.to(`session:${code}`).emit('session_state_update', state);
 
       // Reconnect state restoration for Magnetic Dock challenges
       const currentChalId = sessionPlayer.session?.currentChallengeId;
@@ -208,6 +269,9 @@ export function setupSocketHandlers(io: Server): void {
       }
       
       console.log(`[Player] ${userId} joined session ${code}`);
+      } catch (err) {
+        console.error('player:join error:', err);
+      }
     });
 
     // ── PLAYER DOCK ACTION ───────────────────────────────────────────────

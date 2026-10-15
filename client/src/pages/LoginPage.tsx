@@ -26,11 +26,24 @@ type PageMode = 'login' | 'register';
 type RegisterType = 'student' | 'gm';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState<PageMode>('login');
   const [registerType, setRegisterType] = useState<RegisterType>('student');
+
+  // If already authenticated, redirect to appropriate role workspace
+  React.useEffect(() => {
+    if (user) {
+      if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+        navigate('/admin', { replace: true });
+      } else if (user.role === 'GAME_MASTER') {
+        navigate('/gm', { replace: true });
+      } else {
+        navigate('/terminal', { replace: true });
+      }
+    }
+  }, [user, navigate]);
 
   // ── Login state ────────────────────────────────────────────────────────────
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -471,6 +484,7 @@ export default function LoginPage() {
                         </div>
                         <input
                           id="login-id"
+                          name="username"
                           type="text"
                           autoComplete="username"
                           value={loginIdentifier}
@@ -505,6 +519,7 @@ export default function LoginPage() {
                         </div>
                         <input
                           id="login-pass"
+                          name="password"
                           type={showPassword ? 'text' : 'password'}
                           autoComplete="current-password"
                           value={loginPassword}

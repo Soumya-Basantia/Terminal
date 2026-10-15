@@ -7,7 +7,7 @@ import { TerminalBadge } from '../components/ui';
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 const OPTION_COLORS = ['var(--term-cyan)', 'var(--term-magenta)', 'var(--term-yellow)', 'var(--term-blue)'];
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function PresenterPage() {
   const { sessionCode } = useParams<{ sessionCode: string }>();
@@ -147,6 +147,28 @@ export default function PresenterPage() {
         {/* Ambient Grid & Scanlines */}
         <div className="fixed inset-0 pointer-events-none term-grid-lines -z-10" />
         <div className="fixed inset-0 pointer-events-none opacity-40 bg-[radial-gradient(ellipse_at_center,rgba(0,255,204,0.08)_0%,transparent_75%)] -z-10" />
+
+        {/* Presenter controls */}
+        <div className="fixed top-3 right-3 flex items-center gap-2 font-mono z-50">
+          <button
+            onClick={() => {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen?.().catch(() => {});
+              } else {
+                document.exitFullscreen?.().catch(() => {});
+              }
+            }}
+            className="px-2 py-1 bg-[#0a0c10]/80 hover:bg-[#161c24] text-[#8b99aa] hover:text-[#00ffcc] border border-[#2d3848] text-[10px] font-bold cursor-pointer"
+          >
+            [⛶ FULLSCREEN]
+          </button>
+          <a
+            href={`/sessions/${code}/host`}
+            className="px-2 py-1 bg-[#0a0c10]/80 hover:bg-[#161c24] text-[#8b99aa] hover:text-[#00ffcc] border border-[#2d3848] text-[10px] font-bold"
+          >
+            [HOST]
+          </a>
+        </div>
 
         <div className="w-full max-w-4xl flex flex-col items-center text-center animate-fade-in-scale">
           {/* Logo & Platform Tag */}

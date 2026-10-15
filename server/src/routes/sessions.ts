@@ -4,7 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { generateSessionCode } from '../utils/sessionCode';
 import { getSessionState, purgeGameSessionChat } from '../services/sessionService';
 import { SessionStatus } from '@prisma/client';
-import { checkEventAuthorization, checkGameAuthorization } from '../utils/authorization';
+import { checkEventAuthorization, checkGameAuthorization, checkSessionHostAuthorization } from '../utils/authorization';
 import { registry, Validator, ValidationContext } from '../engine';
 import { validateChallengeAnswer } from '../engine/Validator';
 import { validateQuestionTypeSemantics } from './games';
@@ -100,32 +100,53 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
   }
 
   // ── EVENT HOST PATH (legacy launch-event flow) ─────────────────────────────
-  let event: any = await prisma.event.findFirst({
-    where: { id: String(eventId), status: 'PUBLISHED' },
-    include: { games: { include: { game: { include: { challenges: { orderBy: { position: 'asc' } } } } }, orderBy: { position: 'asc' } } },
+  const eventExists = await prisma.event.findUnique({
+    where: { id: String(eventId) },
+    include: {
+      games: {
+        where: { enabled: true },
+        include: { game: { include: { challenges: { orderBy: { position: 'asc' } } } } },
+        orderBy: { position: 'asc' }
+      }
+    }
   });
 
-  if (!event) {
-    res.status(404).json({ error: 'Event not found or not published' });
+  if (!eventExists) {
+    res.status(404).json({ error: 'Event not found' });
     return;
   }
 
-  const isAuthorized = await checkEventAuthorization(event.id, req.userId!);
+  const isAuthorized = await checkEventAuthorization(eventExists.id, req.userId!);
   if (!isAuthorized) {
     res.status(403).json({ error: 'Forbidden: Club Admin or Creator access required' });
     return;
   }
 
-  const targetGame = event.games.length > 0 ? event.games[0].game : null;
-  if (targetGame) {
-    const preflight = await preflightGameForHosting(targetGame);
-    if (!preflight.ok) {
-      res.status(400).json({ error: 'GAME CANNOT BE HOSTED', code: 'PREFLIGHT_FAILED', preflight });
-      return;
-    }
-    if (targetGame.status !== 'PUBLISHED') {
-      await prisma.game.update({ where: { id: targetGame.id }, data: { status: 'PUBLISHED' } });
-    }
+  if (eventExists.status !== 'PUBLISHED') {
+    res.status(400).json({ error: 'Event must be PUBLISHED before a session can be initialized' });
+    return;
+  }
+
+  const enabledGames = eventExists.games || [];
+  if (enabledGames.length === 0) {
+    res.status(400).json({ error: 'Event must contain at least one enabled game with valid challenges to initialize a session' });
+    return;
+  }
+
+  const event = eventExists;
+  const targetGame = enabledGames[0].game;
+  if (!targetGame) {
+    res.status(400).json({ error: 'No valid game attached to event' });
+    return;
+  }
+
+  const preflight = await preflightGameForHosting(targetGame);
+  if (!preflight.ok) {
+    res.status(400).json({ error: 'GAME CANNOT BE HOSTED', code: 'PREFLIGHT_FAILED', preflight });
+    return;
+  }
+  if (targetGame.status !== 'PUBLISHED') {
+    await prisma.game.update({ where: { id: targetGame.id }, data: { status: 'PUBLISHED' } });
   }
 
   // Generate unique room code
@@ -214,18 +235,34 @@ router.post('/join', authenticate, async (req: AuthRequest, res: Response): Prom
     }
   }
 
-  const teamMembership = await prisma.teamMember.findFirst({ where: { userId: req.userId! } });
-  const teamId = teamMembership?.teamId || null;
+  // Authoritative teams mode check: read from snapshot if available, or session.currentGame
+  const snapshot: any = (session as any).snapshot || null;
+  let isTeamsMode = snapshot?.teamsEnabled !== undefined
+    ? Boolean(snapshot.teamsEnabled)
+    : false;
+  if (!snapshot && session.currentGameId) {
+    const g = await prisma.game.findUnique({
+      where: { id: session.currentGameId },
+      select: { teamsEnabled: true }
+    });
+    isTeamsMode = Boolean(g?.teamsEnabled);
+  }
+
+  let teamId: string | null = null;
+  if (isTeamsMode) {
+    const teamMembership = await prisma.teamMember.findFirst({ where: { userId: req.userId! } });
+    teamId = teamMembership?.teamId || null;
+  }
 
   const sessionPlayer = await prisma.sessionPlayer.upsert({
     where: {
       sessionId_userId: { sessionId: session.id, userId: req.userId! }
     },
-    update: { status: 'ACTIVE', ...(teamId ? { teamId } : {}) },
+    update: { status: 'ACTIVE', ...(isTeamsMode && teamId ? { teamId } : {}) },
     create: {
       sessionId: session.id,
       userId: req.userId!,
-      ...(teamId ? { teamId } : {})
+      ...(isTeamsMode && teamId ? { teamId } : {})
     }
   });
 
@@ -258,7 +295,19 @@ router.get('/:roomCode/host', authenticate, async (req: AuthRequest, res: Respon
 
   const session = await prisma.session.findUnique({
     where: { roomCode },
-    include: { event: true },
+    // Include the event's game list — the Host UI renders
+    // `sessionData.event.games` (EVENT_FLOW panel), so the host load must
+    // carry the same shape as the socket `session_state_update` payload.
+    include: {
+      event: {
+        include: {
+          games: {
+            orderBy: { position: 'asc' },
+            include: { game: true },
+          },
+        },
+      },
+    },
   });
 
   if (!session) {
@@ -266,18 +315,7 @@ router.get('/:roomCode/host', authenticate, async (req: AuthRequest, res: Respon
     return;
   }
 
-  // Re-resolve the controlling GM's identity from the session record when
-  // possible; fall back to event authorization for legacy sessions.
-  let authorized = false;
-  if (session.gmId) {
-    authorized = session.gmId === req.userId;
-  }
-  if (!authorized) {
-    const user = await prisma.user.findUnique({ where: { id: req.userId! } });
-    const canControlLegacy = (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN');
-    authorized = canControlLegacy || await checkEventAuthorization(session.eventId, req.userId!);
-  }
-
+  const authorized = await checkSessionHostAuthorization(session, req.userId!);
   if (!authorized) {
     res.status(403).json({ error: 'Forbidden: You are not authorized to control this session' });
     return;
@@ -285,9 +323,12 @@ router.get('/:roomCode/host', authenticate, async (req: AuthRequest, res: Respon
 
   const snapshot: any = session.snapshot;
   const timing = getQuestionTiming(session);
+  const state = await getSessionState(session.roomCode);
 
   res.json({
+    ...(state || {}),
     session: {
+      ...(state?.session || {}),
       id: session.id,
       roomCode: session.roomCode,
       status: session.status,
@@ -305,7 +346,7 @@ router.get('/:roomCode/host', authenticate, async (req: AuthRequest, res: Respon
       snapshotVersion: session.snapshotVersion,
       hasSnapshot: Boolean(session.snapshot),
     },
-    event: { id: session.event.id, name: session.event.name, mode: session.event.mode },
+    event: { id: session.event.id, name: session.event.name, mode: session.event.mode, games: session.event.games },
     game: snapshot
       ? {
           id: snapshot.gameId,
@@ -328,7 +369,7 @@ router.get('/:roomCode/host', authenticate, async (req: AuthRequest, res: Respon
             return { ...safe, config };
           }),
         }
-      : null,
+      : (state?.game || null),
     questionTiming: timing,
     canControl: true,
     gmHandle: `${(await prisma.user.findUnique({ where: { id: session.gmId || session.event.creatorId } }))?.username || 'GM'}@terminal`,
@@ -381,19 +422,10 @@ router.put('/:id/status', authenticate, async (req: AuthRequest, res: Response):
     return;
   }
 
-  const isAuthorized = await checkEventAuthorization(session.eventId, req.userId!);
+  const isAuthorized = await checkSessionHostAuthorization(session, req.userId!);
   if (!isAuthorized) {
     res.status(403).json({ error: 'Forbidden' });
     return;
-  }
-
-  // IDOR/BOLA-style misuse: ensure the caller actually controls the session's gm context.
-  if (session.gmId && session.gmId !== req.userId) {
-    const actorUser = await prisma.user.findUnique({ where: { id: req.userId! } });
-    if (actorUser?.role !== 'SUPER_ADMIN') {
-      res.status(403).json({ error: 'Forbidden' });
-      return;
-    }
   }
 
   const io = req.app.get('io');
@@ -433,22 +465,10 @@ router.put('/:id/advance', authenticate, async (req: AuthRequest, res: Response)
     return;
   }
 
-  if (session.event.clubId) {
-    const user = await prisma.user.findUnique({ where: { id: req.userId! } });
-    if (user?.role !== 'SUPER_ADMIN') {
-      const membership = await prisma.clubMember.findUnique({
-        where: { clubId_userId: { clubId: session.event.clubId, userId: req.userId! } }
-      });
-      if (!membership || membership.role !== 'ADMIN') {
-        res.status(403).json({ error: 'Forbidden' });
-        return;
-      }
-    }
-  } else {
-    if (session.event.creatorId !== req.userId) {
-      res.status(403).json({ error: 'Forbidden' });
-      return;
-    }
+  const isAuthorized = await checkSessionHostAuthorization(session, req.userId!);
+  if (!isAuthorized) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
   }
 
   const nextPos = session.currentPosition + 1;
@@ -514,7 +534,7 @@ router.post('/:id/purge-chat', authenticate, async (req: AuthRequest, res: Respo
     return;
   }
 
-  const isAuthorized = await checkEventAuthorization(session.eventId, req.userId!);
+  const isAuthorized = await checkSessionHostAuthorization(session, req.userId!);
   if (!isAuthorized) {
     res.status(403).json({ error: 'Forbidden' });
     return;
@@ -1015,12 +1035,48 @@ router.post('/active/submit', authenticate, async (req: AuthRequest, res: Respon
     }
 
     if (existingSub && existingSub.isCorrect) {
-      res.status(400).json({ error: 'Already submitted' });
+      if (gameTemplate?.id === 'RAPID_FIRE') {
+        const cfg = (challenge.config as any) || {};
+        res.json({
+          submission: existingSub,
+          duplicate: true,
+          isCorrect: existingSub.isCorrect,
+          pointsAwarded: 0,
+          correctAnswer: cfg.answer !== undefined ? cfg.answer : (cfg.correct !== undefined ? cfg.correct : null),
+          explanation: cfg.explanation || (challenge as any).explanation || null,
+          streak: (session as any)._streakCount || 0,
+        });
+        return;
+      }
+      res.json({
+        success: true,
+        duplicate: true,
+        submitted: true,
+        message: 'Answer submitted.',
+      });
       return;
     }
 
     if (existingSub && gameTemplate?.id !== 'LOGIC_HEIST' && gameTemplate?.id !== 'BUG_HUNT' && gameTemplate?.id !== 'THE_WITNESS' && gameTemplate?.id !== 'ROGUE_SCANNER' && gameTemplate?.id !== 'SILENT_MISSION' && gameTemplate?.id !== 'SIGNAL_ROUTER' && gameTemplate?.id !== 'THE_THRESHOLD' && gameTemplate?.id !== 'TEAM_CHALLENGE' && !config.dock && !(session.currentGame?.config as any)?.allowMultipleAttempts) {
-      res.status(400).json({ error: 'Already submitted' });
+      if (gameTemplate?.id === 'RAPID_FIRE') {
+        const cfg = (challenge.config as any) || {};
+        res.json({
+          submission: existingSub,
+          duplicate: true,
+          isCorrect: existingSub.isCorrect,
+          pointsAwarded: 0,
+          correctAnswer: cfg.answer !== undefined ? cfg.answer : (cfg.correct !== undefined ? cfg.correct : null),
+          explanation: cfg.explanation || (challenge as any).explanation || null,
+          streak: (session as any)._streakCount || 0,
+        });
+        return;
+      }
+      res.json({
+        success: true,
+        duplicate: true,
+        submitted: true,
+        message: 'Answer submitted.',
+      });
       return;
     }
 
@@ -1255,24 +1311,63 @@ router.post('/active/submit', authenticate, async (req: AuthRequest, res: Respon
     if (io) {
       const state = await getSessionState(session.roomCode);
       io.to(`session:${session.roomCode}`).emit('session_state_update', state);
+
+      try {
+        const scores = await calculateSessionScores(session.id);
+        io.to(`session:${session.roomCode}`).emit('leaderboard:update', {
+          roomCode: session.roomCode,
+          revision: Date.now(),
+          isTeamGame: scores.isTeamGame,
+          teamLeaderboard: scores.teams,
+          individualLeaderboard: scores.individuals,
+          timeBonusConfig: scores.timeBonusConfig,
+        });
+      } catch (err) {
+        console.error('[Submit] Error calculating leaderboard update:', err);
+      }
     }
 
-    res.json({ 
-      submission, 
-      isCorrect, 
-      pointsAwarded,
-      isChainReaction: gameTemplate?.progressionConfig?.type === 'CHAIN',
+    const isSpecialFeedbackMode =
+      gameTemplate?.id === 'BUG_HUNT' ||
+      gameTemplate?.id === 'THE_WITNESS' ||
+      gameTemplate?.id === 'ROGUE_SCANNER' ||
+      gameTemplate?.id === 'SILENT_MISSION' ||
+      gameTemplate?.id === 'SIGNAL_ROUTER' ||
+      gameTemplate?.id === 'THE_THRESHOLD' ||
+      gameTemplate?.progressionConfig?.type === 'CHAIN';
+
+    if (isSpecialFeedbackMode) {
+      const challengeConfig = (challenge.config as any) || {};
+      res.json({ 
+        submission, 
+        isCorrect, 
+        pointsAwarded,
+        correctAnswer: challengeConfig.answer !== undefined ? challengeConfig.answer : (challengeConfig.correct !== undefined ? challengeConfig.correct : null),
+        explanation: challengeConfig.explanation || (challenge as any).explanation || null,
+        isChainReaction: gameTemplate?.progressionConfig?.type === 'CHAIN',
+        isRapidFire: false,
+        isBugHunt: gameTemplate?.id === 'BUG_HUNT',
+        isWitness: gameTemplate?.id === 'THE_WITNESS',
+        isRogueScanner: gameTemplate?.id === 'ROGUE_SCANNER',
+        isSilentMission: gameTemplate?.id === 'SILENT_MISSION',
+        isSignalRouter: gameTemplate?.id === 'SIGNAL_ROUTER',
+        isThreshold: gameTemplate?.id === 'THE_THRESHOLD',
+        streak: (session as any)._streakCount || 0,
+        executionTrace,
+        regressionResult: executionTrace,
+        simulation: (submissionMetadata as any)?.simulation,
+      });
+      return;
+    }
+
+    // Standard QUIZ / RAPID_FIRE / Delayed explanation mode:
+    res.json({
+      success: true,
+      submitted: true,
+      message: 'Answer submitted.',
+      submissionId: submission.id,
+      duplicate: false,
       isRapidFire: gameTemplate?.id === 'RAPID_FIRE',
-      isBugHunt: gameTemplate?.id === 'BUG_HUNT',
-      isWitness: gameTemplate?.id === 'THE_WITNESS',
-      isRogueScanner: gameTemplate?.id === 'ROGUE_SCANNER',
-      isSilentMission: gameTemplate?.id === 'SILENT_MISSION',
-      isSignalRouter: gameTemplate?.id === 'SIGNAL_ROUTER',
-      isThreshold: gameTemplate?.id === 'THE_THRESHOLD',
-      streak: (session as any)._streakCount || 0,
-      executionTrace,
-      regressionResult: executionTrace,
-      simulation: (submissionMetadata as any)?.simulation,
     });
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -1363,7 +1458,8 @@ router.post('/:code/submit', authenticate, async (req: AuthRequest, res: Respons
         isCorrect,
         score: pointsAwarded,
         responseTime: responseTimeMs,
-        teamId: sessionPlayer.teamId
+        teamId: sessionPlayer.teamId,
+        runId: session.currentRun,
       }
     });
 
@@ -1371,19 +1467,33 @@ router.post('/:code/submit', authenticate, async (req: AuthRequest, res: Respons
     if (io) {
       const state = await getSessionState(session.roomCode);
       io.to(`session:${session.roomCode}`).emit('session_state_update', state);
+
+      try {
+        const scores = await calculateSessionScores(session.id);
+        io.to(`session:${session.roomCode}`).emit('leaderboard:update', {
+          roomCode: session.roomCode,
+          revision: Date.now(),
+          isTeamGame: scores.isTeamGame,
+          teamLeaderboard: scores.teams,
+          individualLeaderboard: scores.individuals,
+          timeBonusConfig: scores.timeBonusConfig,
+        });
+      } catch (err) {
+        console.error('[Submit] Error calculating leaderboard update:', err);
+      }
     }
 
-    res.json({ 
-      submission,
-      isCorrect,
-      pointsAwarded,
+    res.json({
+      success: true,
+      submitted: true,
+      message: 'Answer submitted.',
+      submissionId: submission.id,
+      duplicate: false,
       isRapidFire: session.currentGame?.template === 'RAPID_FIRE',
-      streak: 0,
-      isChainReaction: false
     });
   } catch (error: any) {
     if (error.code === 'P2002') {
-      // Idempotent duplicate — return the existing submission instead of an error.
+      // Idempotent duplicate — return neutral confirmation for Quiz & Rapid Fire mode.
       const existing = await prisma.submission.findUnique({
         where: {
           sessionId_challengeId_playerId_runId: {
@@ -1396,13 +1506,12 @@ router.post('/:code/submit', authenticate, async (req: AuthRequest, res: Respons
       });
       if (existing) {
         res.json({
-          submission: existing,
+          success: true,
           duplicate: true,
-          isCorrect: existing.isCorrect,
-          pointsAwarded: existing.score,
+          submitted: true,
+          message: 'Answer submitted.',
+          submissionId: existing.id,
           isRapidFire: session.currentGame?.template === 'RAPID_FIRE',
-          streak: 0,
-          isChainReaction: false,
         });
         return;
       }
@@ -1411,6 +1520,275 @@ router.post('/:code/submit', authenticate, async (req: AuthRequest, res: Respons
       res.status(500).json({ error: 'Internal server error' });
     }
   }
+});
+
+// GET /api/sessions/:code/my-submission — Retrieve participant's submitted answer for active question (neutral during gameplay)
+router.get('/:code/my-submission', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const code = (req.params.code as string).toUpperCase();
+  const session = await prisma.session.findUnique({
+    where: { roomCode: code },
+    include: { currentGame: true }
+  });
+
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+
+  if (!session.currentChallengeId) {
+    res.json({ hasSubmitted: false });
+    return;
+  }
+
+  const sessionPlayer = await prisma.sessionPlayer.findFirst({
+    where: { session: { roomCode: code }, userId: req.userId! }
+  });
+
+  if (!sessionPlayer) {
+    res.status(403).json({ error: 'Not joined to session' });
+    return;
+  }
+
+  const submission = await prisma.submission.findUnique({
+    where: {
+      sessionId_challengeId_playerId_runId: {
+        sessionId: session.id,
+        challengeId: session.currentChallengeId,
+        playerId: sessionPlayer.id,
+        runId: session.currentRun,
+      }
+    }
+  });
+
+  if (!submission) {
+    res.json({ hasSubmitted: false });
+    return;
+  }
+
+  const liveChallenge = await prisma.challenge.findUnique({
+    where: { id: session.currentChallengeId }
+  });
+  const challenge = liveChallenge ? getChallengeForLiveSession(session, liveChallenge) : null;
+  const cfg = (challenge?.config as any) || {};
+
+  let parsedAnswer: any = submission.answer;
+  try {
+    parsedAnswer = JSON.parse(submission.answer);
+  } catch {}
+
+  const snapshot: any = (session as any).snapshot;
+  const isPostGame = session.status === 'RESULTS' || session.status === 'ENDED';
+  const isRevealed = Boolean(snapshot?.reviewState?.revealed && isPostGame);
+
+  if (!isRevealed) {
+    // Neutral confirmation during active gameplay - NEVER leak answers or correctness!
+    res.json({
+      hasSubmitted: true,
+      submitted: true,
+      submittedAnswer: parsedAnswer,
+      message: 'Answer submitted.',
+    });
+    return;
+  }
+
+  res.json({
+    hasSubmitted: true,
+    submitted: true,
+    submittedAnswer: parsedAnswer,
+    submission,
+    isCorrect: submission.isCorrect,
+    pointsAwarded: submission.score,
+    correctAnswer: cfg.answer !== undefined ? cfg.answer : (cfg.correct !== undefined ? cfg.correct : null),
+    explanation: cfg.explanation || (challenge as any)?.explanation || null,
+  });
+});
+
+// POST /api/sessions/:code/reveal-answers — Host initiates post-game review of answers & explanations
+router.post('/:code/reveal-answers', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const code = (req.params.code as string).toUpperCase();
+  const session = await prisma.session.findUnique({
+    where: { roomCode: code },
+    include: { event: true, currentGame: true }
+  });
+
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+
+  const isAuthorized = await checkSessionHostAuthorization(session, req.userId!);
+  if (!isAuthorized) {
+    res.status(403).json({ error: 'Forbidden: Only authorized host may reveal answers and explanations' });
+    return;
+  }
+
+  if (session.status !== 'RESULTS' && session.status !== 'ENDED') {
+    res.status(400).json({ error: 'Answers can only be revealed after the game ends and scoring is finalized' });
+    return;
+  }
+
+  const snapshot: any = (session as any).snapshot || {};
+  snapshot.reviewState = {
+    revealed: true,
+    currentQuestionIndex: 0,
+    revealedAt: new Date().toISOString(),
+  };
+
+  await prisma.session.update({
+    where: { id: session.id },
+    data: { snapshot },
+  });
+
+  const io = req.app.get('io');
+  if (io) {
+    const state = await getSessionState(session.roomCode);
+    io.to(`session:${session.roomCode}`).emit('session_state_update', state);
+    io.to(`session:${session.roomCode}`).emit('review:revealed', {
+      currentQuestionIndex: 0,
+    });
+  }
+
+  res.json({
+    success: true,
+    isReviewRevealed: true,
+    reviewQuestionIndex: 0,
+  });
+});
+
+// POST /api/sessions/:code/review-navigate — Host steps through review questions one at a time
+router.post('/:code/review-navigate', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const code = (req.params.code as string).toUpperCase();
+  const { index, direction } = req.body;
+
+  const session = await prisma.session.findUnique({
+    where: { roomCode: code },
+    include: { event: true, currentGame: true }
+  });
+
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+
+  const isAuthorized = await checkSessionHostAuthorization(session, req.userId!);
+  if (!isAuthorized) {
+    res.status(403).json({ error: 'Forbidden: Only authorized host may navigate review questions' });
+    return;
+  }
+
+  const snapshot: any = (session as any).snapshot || {};
+  if (!snapshot.reviewState?.revealed) {
+    res.status(400).json({ error: 'Review mode has not been revealed yet' });
+    return;
+  }
+
+  const challenges = Array.isArray(snapshot.challenges)
+    ? snapshot.challenges
+    : (session.currentGame as any)?.challenges || [];
+  const maxIdx = Math.max(0, challenges.length - 1);
+
+  let newIndex = Number(snapshot.reviewState.currentQuestionIndex || 0);
+  if (direction === 'next') {
+    newIndex = Math.min(maxIdx, newIndex + 1);
+  } else if (direction === 'prev') {
+    newIndex = Math.max(0, newIndex - 1);
+  } else if (typeof index === 'number') {
+    newIndex = Math.max(0, Math.min(maxIdx, index));
+  }
+
+  snapshot.reviewState.currentQuestionIndex = newIndex;
+
+  await prisma.session.update({
+    where: { id: session.id },
+    data: { snapshot },
+  });
+
+  const io = req.app.get('io');
+  if (io) {
+    const state = await getSessionState(session.roomCode);
+    io.to(`session:${session.roomCode}`).emit('session_state_update', state);
+    io.to(`session:${session.roomCode}`).emit('review:navigate', {
+      currentQuestionIndex: newIndex,
+    });
+  }
+
+  res.json({
+    success: true,
+    reviewQuestionIndex: newIndex,
+  });
+});
+
+// GET /api/sessions/:code/review — Retrieve authorized review questions, answers, and explanations
+router.get('/:code/review', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const code = (req.params.code as string).toUpperCase();
+  const session = await prisma.session.findUnique({
+    where: { roomCode: code },
+    include: { currentGame: { include: { challenges: { orderBy: { position: 'asc' } } } } }
+  });
+
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return;
+  }
+
+  const isPostGame = session.status === 'RESULTS' || session.status === 'ENDED';
+  const snapshot: any = (session as any).snapshot || {};
+  const isRevealed = Boolean(snapshot.reviewState?.revealed && isPostGame);
+
+  if (!isRevealed) {
+    res.status(403).json({
+      error: 'Answers and explanations have not been revealed by the host yet',
+      revealed: false,
+    });
+    return;
+  }
+
+  // Find student's submissions if authenticated as participant
+  const sessionPlayer = await prisma.sessionPlayer.findFirst({
+    where: { sessionId: session.id, userId: req.userId! }
+  });
+
+  let studentSubmissions: Record<string, any> = {};
+  if (sessionPlayer) {
+    const subs = await prisma.submission.findMany({
+      where: { sessionId: session.id, playerId: sessionPlayer.id }
+    });
+    for (const sub of subs) {
+      let parsed = sub.answer;
+      try { parsed = JSON.parse(sub.answer); } catch {}
+      studentSubmissions[sub.challengeId] = {
+        submittedAnswer: parsed,
+        isCorrect: sub.isCorrect,
+        score: sub.score,
+      };
+    }
+  }
+
+  const challenges: any[] = Array.isArray(snapshot.challenges)
+    ? snapshot.challenges
+    : (session.currentGame as any)?.challenges || [];
+
+  const questions = challenges.map((ch: any, idx: number) => {
+    const cfg = ch.config || {};
+    return {
+      id: ch.id,
+      index: idx,
+      position: ch.position ?? idx + 1,
+      prompt: ch.prompt,
+      type: ch.type,
+      points: ch.points,
+      options: ch.options || cfg.options || [],
+      correctAnswer: cfg.answer !== undefined ? cfg.answer : (cfg.correct !== undefined ? cfg.correct : ch.answer),
+      explanation: cfg.explanation || ch.explanation || '',
+      studentSubmission: studentSubmissions[ch.id] || null,
+    };
+  });
+
+  res.json({
+    revealed: true,
+    currentQuestionIndex: snapshot.reviewState.currentQuestionIndex || 0,
+    questions,
+  });
 });
 
 // POST /api/sessions/:code/start — Host starts the round (state-machine guarded)
@@ -1426,9 +1804,9 @@ router.post('/:code/start', authenticate, async (req: AuthRequest, res: Response
     return;
   }
 
-  const isAuthorized = await checkEventAuthorization(session.eventId, req.userId!);
+  const isAuthorized = await checkSessionHostAuthorization(session, req.userId!);
   if (!isAuthorized) {
-    res.status(403).json({ error: 'Forbidden' });
+    res.status(403).json({ error: 'Forbidden: You are not authorized to start this session' });
     return;
   }
 
@@ -1471,7 +1849,7 @@ router.post('/:code/lock', authenticate, async (req: AuthRequest, res: Response)
     return;
   }
 
-  const isAuthorized = await checkEventAuthorization(session.eventId, req.userId!);
+  const isAuthorized = await checkSessionHostAuthorization(session, req.userId!);
   if (!isAuthorized) {
     res.status(403).json({ error: 'Forbidden' });
     return;
@@ -1502,7 +1880,7 @@ router.post('/:code/end', authenticate, async (req: AuthRequest, res: Response):
     return;
   }
 
-  const isAuthorized = await checkEventAuthorization(session.eventId, req.userId!);
+  const isAuthorized = await checkSessionHostAuthorization(session, req.userId!);
   if (!isAuthorized) {
     res.status(403).json({ error: 'Forbidden' });
     return;
@@ -1532,7 +1910,7 @@ router.post('/:code/next', authenticate, async (req: AuthRequest, res: Response)
     return;
   }
 
-  const isAuthorized = await checkEventAuthorization(session.eventId, req.userId!);
+  const isAuthorized = await checkSessionHostAuthorization(session, req.userId!);
   if (!isAuthorized) {
     res.status(403).json({ error: 'Forbidden' });
     return;
@@ -1541,8 +1919,15 @@ router.post('/:code/next', authenticate, async (req: AuthRequest, res: Response)
   const io = req.app.get('io');
   const actor = await prisma.user.findUnique({ where: { id: req.userId! } });
 
-  // Only advance from result states or while a locked question awaits the next one.
-  if (!canTransition(session.status, 'QUESTION_ACTIVE') && session.status !== 'QUESTION_RESULTS') {
+  // If caller specified currentChallengeId for idempotency, and session already moved past it, return idempotent success
+  if (req.body?.currentChallengeId && session.currentChallengeId !== req.body.currentChallengeId) {
+    res.json({ success: true, session, alreadyAdvanced: true });
+    return;
+  }
+
+  // Allow advancing from active, locked, or question results states.
+  const advanceableStatuses = ['QUESTION_ACTIVE', 'QUESTION_LOCKED', 'QUESTION_RESULTS'];
+  if (!advanceableStatuses.includes(session.status) && !canTransition(session.status, 'QUESTION_ACTIVE')) {
     res.status(409).json({ error: `Cannot advance next question from status ${session.status}` });
     return;
   }

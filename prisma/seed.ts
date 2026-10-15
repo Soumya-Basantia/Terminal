@@ -27,7 +27,6 @@ async function main() {
   const rootAdmin = await prisma.user.upsert({
     where: { username: 'root' },
     update: {
-      passwordHash: rootPassword,
       role: 'ADMIN',
       approvalStatus: 'APPROVED',
       accountStatus: 'ACTIVE',
@@ -275,9 +274,6 @@ async function main() {
   }
 
   console.log(`✅ Git Battle seeded with ${questions.length} questions`);
-  console.log('\n📋 Demo credentials:');
-  console.log('   Email: demo@terminal.dev');
-  console.log('   Password: terminal123\n');
 }
 
 main()

@@ -14,6 +14,8 @@ export type TerminalContext = {
   openTeamChat?: () => void;
   closeTeamChat?: () => void;
   isTeamChatOpen?: boolean;
+  /** Navigate to a client-side route (React Router navigate) */
+  navigate?: (path: string) => void;
 };
 
 export type CommandDefinition = {

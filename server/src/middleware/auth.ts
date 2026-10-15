@@ -83,12 +83,18 @@ export async function requireClubAdmin(
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, approvalStatus: true }
+      select: { role: true, approvalStatus: true, mustChangePassword: true }
     });
 
-    if (user?.role === 'GAME_MASTER' && user?.approvalStatus !== 'APPROVED') {
-      res.status(403).json({ error: 'Forbidden: Game Master pending approval' });
-      return;
+    if (user?.role === 'GAME_MASTER') {
+      if (user?.approvalStatus !== 'APPROVED') {
+        res.status(403).json({ error: 'Forbidden: Game Master pending approval' });
+        return;
+      }
+      if (user?.mustChangePassword) {
+        res.status(403).json({ error: 'Password change required before accessing Game Master functionality', code: 'PASSWORD_CHANGE_REQUIRED', mustChangePassword: true });
+        return;
+      }
     }
 
     // Administrator can do anything
@@ -150,6 +156,10 @@ export async function requireGameMaster(
       }
       if (user.approvalStatus === 'REJECTED') {
         res.status(403).json({ error: 'Account has been rejected by administrator', approvalStatus: 'REJECTED' });
+        return;
+      }
+      if (user.mustChangePassword) {
+        res.status(403).json({ error: 'Password change required before accessing Game Master functionality', code: 'PASSWORD_CHANGE_REQUIRED', mustChangePassword: true });
         return;
       }
       return next();

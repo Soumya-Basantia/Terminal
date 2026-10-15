@@ -14,7 +14,7 @@ export async function checkEventAuthorization(eventId: string, userId: string): 
   if (!user) return false;
 
   // Block unapproved Game Masters from any event management
-  if (user.role === 'GAME_MASTER' && user.approvalStatus !== 'APPROVED') {
+  if (user.role === 'GAME_MASTER' && (user.approvalStatus !== 'APPROVED' || user.mustChangePassword)) {
     return false;
   }
 
@@ -39,23 +39,66 @@ export async function checkEventAuthorization(eventId: string, userId: string): 
     return false;
   } else {
     // Fallback for non-migrated events
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return true;
     return event.creatorId === userId;
   }
 }
 
 /**
+ * Checks if a user is authorized to host or control a session.
+ * Rules:
+ * - Unauthenticated callers rejected prior to this check.
+ * - Students (role === 'PLAYER') are always forbidden.
+ * - Unapproved Game Masters or those requiring password change are forbidden.
+ * - SUPER_ADMIN and ADMIN have platform-wide host authority.
+ * - Owning GM (session.gmId === userId) is authorized.
+ * - Different GM (session.gmId !== userId) is forbidden.
+ * - Fallback for legacy sessions without gmId: event creator or event admin.
+ */
+export async function checkSessionHostAuthorization(
+  session: { gmId?: string | null; eventId: string; event?: { creatorId?: string } | null },
+  userId: string
+): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return false;
+
+  // Students can never host or control a session
+  if (user.role === 'PLAYER') return false;
+
+  // Block unapproved Game Masters or those requiring password change from session control
+  if (user.role === 'GAME_MASTER' && (user.approvalStatus !== 'APPROVED' || user.mustChangePassword)) {
+    return false;
+  }
+
+  // SUPER_ADMIN and ADMIN have platform-wide host authority
+  if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return true;
+
+  // Owning GM: the GM who hosted this session
+  if (session.gmId) {
+    return session.gmId === userId;
+  }
+
+  // Legacy fallback: event creator or event admin
+  if (session.event?.creatorId && session.event.creatorId === userId) {
+    return true;
+  }
+
+  return checkEventAuthorization(session.eventId, userId);
+}
+
+/**
  * Checks if a user is authorized to manage a given game.
  * Rules:
- * - If user is GAME_MASTER, approvalStatus must be APPROVED.
+ * - If user is GAME_MASTER, approvalStatus must be APPROVED and mustChangePassword must be false.
  * - If game belongs to a club: user must be SUPER_ADMIN or club ADMIN.
- * - If game has no club (legacy): user must be the game designer.
+ * - If game has no club (legacy): user must be SUPER_ADMIN/ADMIN or the game designer.
  */
 export async function checkGameAuthorization(gameId: string, userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return false;
 
   // Block unapproved Game Masters from any game management
-  if (user.role === 'GAME_MASTER' && user.approvalStatus !== 'APPROVED') {
+  if (user.role === 'GAME_MASTER' && (user.approvalStatus !== 'APPROVED' || user.mustChangePassword)) {
     return false;
   }
 
@@ -80,6 +123,7 @@ export async function checkGameAuthorization(gameId: string, userId: string): Pr
     return false;
   } else {
     // Fallback for non-migrated games
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return true;
     return game.designerId === userId;
   }
 }

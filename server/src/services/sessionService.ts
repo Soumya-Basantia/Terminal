@@ -21,6 +21,8 @@ export interface SessionStatePayload {
     endedAt: Date | null;
     gmId: string | null;
     snapshotVersion: string | null;
+    isReviewRevealed?: boolean;
+    reviewQuestionIndex?: number | null;
   };
   event: {
     id: string;
@@ -42,6 +44,8 @@ export interface SessionStatePayload {
     template: string;
     challenges?: any[];
   } | null;
+  currentChallenge?: any;
+  reviewChallenge?: any;
   playerCount: number;
   teamCount: number;
   answersCount?: number;
@@ -105,6 +109,13 @@ export interface SessionStatePayload {
       connected: boolean;
     }>;
   };
+  teamResponses?: Array<{
+    teamId: string;
+    teamName: string;
+    respondedCount: number;
+    totalMembers: number;
+  }>;
+  teamsRespondedCount?: number;
   chainProgress?: Record<string, string>;
   dockProgress?: {
     totalInvestigators: number;
@@ -235,6 +246,8 @@ export interface SessionStatePayload {
       score: number;
     }>;
   };
+  isReviewRevealed?: boolean;
+  reviewQuestionIndex?: number | null;
 }
 
 export function deriveStageModeFromStatus(status: string | null | undefined, currentStageMode?: string | null): string {
@@ -384,6 +397,23 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
     where: { sessionId: session.id },
     include: { player: { include: { user: true } }, team: true }
   });
+
+  // Calculate per-team responses for the current challenge
+  const currentChallengeSubmissions = session.currentChallengeId
+    ? submissions.filter(s => s.challengeId === session.currentChallengeId && s.runId === session.currentRun)
+    : [];
+  const submittedPlayerIds = new Set(currentChallengeSubmissions.map(s => s.playerId));
+
+  const teamResponses = teamRoster.teams.map(t => {
+    const answered = t.members.filter(m => submittedPlayerIds.has(m.playerId)).length;
+    return {
+      teamId: t.teamId,
+      teamName: t.teamName,
+      respondedCount: answered,
+      totalMembers: t.membersCount
+    };
+  });
+  const teamsRespondedCount = teamResponses.filter(t => t.respondedCount > 0).length;
 
   const leaderboard = scores.leaderboard;
 
@@ -737,8 +767,8 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
 
   const safeChallenge = (ch: any) => {
     if (!ch.config) return ch;
-    // Strip answer-revealing fields from config before sending to clients
-    const { answer, correct, correctSequence, optimalPath, correctRoute, bug, solution, solutionPatch, secret, culpritId, secretCulpritId, anomalousEventIds, anomalousEventId, anomalyMechanism, ...safeConfig } = ch.config;
+    // Strip answer-revealing fields and explanation from config before sending to clients
+    const { answer, correct, correctSequence, optimalPath, correctRoute, bug, solution, solutionPatch, secret, culpritId, secretCulpritId, anomalousEventIds, anomalousEventId, anomalyMechanism, explanation, ...safeConfig } = ch.config;
     if (Array.isArray(safeConfig.rules)) {
       safeConfig.rules = safeConfig.rules.map((r: any) => {
         const { hasBug, ...safeRule } = r;
@@ -751,7 +781,9 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
         return safeEvt;
       });
     }
-    return { ...ch, options: safeConfig.options ?? ch.options, config: safeConfig };
+    const safeCh = { ...ch, options: safeConfig.options ?? ch.options, config: safeConfig };
+    delete (safeCh as any).explanation;
+    return safeCh;
   };
 
   const snapshotChallenges = (Array.isArray(snapshot?.challenges) ? snapshot.challenges : []).map((c: any) => {
@@ -761,8 +793,84 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
       delete config.answer;
       delete config.correct;
       delete config.solutionPatch;
+      delete config.explanation;
     }
+    delete (safe as any).explanation;
     return { ...safe, options: c.options ?? undefined, config };
+  });
+
+  const rawChallenges = (snapshotChallenges.length > 0 ? snapshotChallenges : liveChallenges).map(safeChallenge);
+  const activeIdx = rawChallenges.findIndex((c: any) => c.id === session.currentChallengeId);
+  const currentChallengeIndex = activeIdx >= 0 ? activeIdx : (session.currentPosition || 0);
+  const activeChallenge = rawChallenges[currentChallengeIndex] || null;
+
+  const isQuestionState = session.status === 'QUESTION_ACTIVE' || session.status === 'QUESTION_LOCKED' || session.status === 'QUESTION_RESULTS';
+
+  const rawActiveChallenge = (snapshot?.challenges?.[currentChallengeIndex] || liveChallenges[currentChallengeIndex]) || null;
+  const rawActiveConfig = (rawActiveChallenge?.config as any) || {};
+
+  const currentChallenge = (activeChallenge && isQuestionState) ? {
+    id: activeChallenge.id,
+    type: activeChallenge.type,
+    prompt: activeChallenge.prompt,
+    points: activeChallenge.points,
+    options: activeChallenge.options,
+    config: activeChallenge.config,
+    timeLimit: activeChallenge.timeLimit || activeChallenge.timerSecs || 30,
+    timerSecs: activeChallenge.timeLimit || activeChallenge.timerSecs || 30,
+    challengeIndex: currentChallengeIndex,
+    totalChallenges: rawChallenges.length,
+    challengeEndsAt: session.questionEndsAt ? session.questionEndsAt.toISOString() : null,
+  } : null;
+
+  // Post-game authorized review mode state
+  const reviewState = (snapshot as any)?.reviewState || null;
+  const isPostGame = session.status === 'RESULTS' || session.status === 'ENDED';
+  const isReviewRevealed = Boolean(reviewState?.revealed && isPostGame);
+
+  const rawSnapshotChallenges = Array.isArray(snapshot?.challenges)
+    ? snapshot.challenges
+    : liveChallenges;
+
+  let reviewChallenge: any = null;
+  if (isReviewRevealed && rawSnapshotChallenges.length > 0) {
+    const revIdx = Math.max(0, Math.min(rawSnapshotChallenges.length - 1, Number(reviewState?.currentQuestionIndex || 0)));
+    const targetCh = rawSnapshotChallenges[revIdx] || null;
+    if (targetCh) {
+      const cfg = (targetCh.config || {}) as any;
+      reviewChallenge = {
+        id: targetCh.id,
+        index: revIdx,
+        position: targetCh.position ?? revIdx + 1,
+        prompt: targetCh.prompt,
+        type: targetCh.type,
+        points: targetCh.points,
+        options: targetCh.options || cfg.options || [],
+        correctAnswer: cfg.answer !== undefined ? cfg.answer : (cfg.correct !== undefined ? cfg.correct : targetCh.answer),
+        explanation: cfg.explanation || targetCh.explanation || null,
+        totalQuestions: rawSnapshotChallenges.length,
+      };
+    }
+  }
+
+  // Mask future challenges in currentGame.challenges so students never see prompts or options ahead of time
+  const sanitizedChallenges = rawChallenges.map((ch: any, idx: number) => {
+    // If the game is ended or at results, or it's the current or past question, keep details
+    if (session.status === 'RESULTS' || session.status === 'ENDED' || idx <= currentChallengeIndex) {
+      return ch;
+    }
+    // Future question: preserve identifiers, points, timer, position for progress tracking, but mask playable content
+    return {
+      id: ch.id,
+      position: ch.position ?? idx,
+      type: ch.type,
+      points: ch.points,
+      timeLimit: ch.timeLimit || ch.timerSecs || 30,
+      timerSecs: ch.timeLimit || ch.timerSecs || 30,
+      prompt: `[ LOCKED - QUESTION ${idx + 1} ]`,
+      options: [],
+      config: {},
+    };
   });
 
   return {
@@ -783,6 +891,8 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
       endedAt: session.endedAt,
       gmId: session.gmId,
       snapshotVersion: session.snapshotVersion,
+      isReviewRevealed,
+      reviewQuestionIndex: isReviewRevealed ? (reviewState?.currentQuestionIndex ?? 0) : null,
     },
     event: {
       id: session.event.id,
@@ -809,8 +919,12 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
       id: session.currentGame.id,
       name: snapshot?.gameName || session.currentGame.name,
       template: session.currentGame.template,
-      challenges: (snapshotChallenges.length > 0 ? snapshotChallenges : liveChallenges).map(safeChallenge),
+      challenges: sanitizedChallenges,
     } : null,
+    currentChallenge,
+    reviewChallenge,
+    isReviewRevealed,
+    reviewQuestionIndex: isReviewRevealed ? (reviewState?.currentQuestionIndex ?? 0) : null,
     playerCount: session.players.length,
     teamCount: uniqueTeams.size,
     answersCount,
@@ -820,6 +934,8 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
     timeBonusConfig: scores.timeBonusConfig,
     playerRoster,
     teamRoster,
+    teamResponses,
+    teamsRespondedCount,
     chainProgress,
     dockProgress,
     witnessProgress,

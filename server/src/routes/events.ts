@@ -49,10 +49,14 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
       res.status(403).json({ error: 'Account has been rejected by administrator', approvalStatus: 'REJECTED' });
       return;
     }
+    if (user.mustChangePassword) {
+      res.status(403).json({ error: 'Password change required before accessing Game Master functionality', code: 'PASSWORD_CHANGE_REQUIRED', mustChangePassword: true });
+      return;
+    }
   }
 
   // Allow if SUPER_ADMIN, ADMIN, or APPROVED GAME_MASTER
-  let canCreate = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || (user.role === 'GAME_MASTER' && user.approvalStatus === 'APPROVED');
+  let canCreate = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || (user.role === 'GAME_MASTER' && user.approvalStatus === 'APPROVED' && !user.mustChangePassword);
   
   if (!canCreate) {
     // Check if they are a Club Admin anywhere

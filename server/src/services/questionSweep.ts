@@ -36,7 +36,10 @@ function templateOf(session: any): string {
 /** Next challenge strictly after `challengeId` in the FROZEN snapshot order. */
 function nextChallengeAfter(session: any, challengeId: string | null | undefined): any | null {
   const snap: any = session?.snapshot;
-  const challenges: any[] = Array.isArray(snap?.challenges) ? snap.challenges : [];
+  const snapChallenges: any[] = Array.isArray(snap?.challenges) ? snap.challenges : [];
+  const challenges: any[] = snapChallenges.length > 0
+    ? snapChallenges
+    : (session?.currentGame?.challenges || []);
   if (!challenges.length) return null;
   const idx = challenges.findIndex((c: any) => c.id === challengeId);
   return idx >= 0 ? (challenges[idx + 1] ?? null) : null;
@@ -46,6 +49,23 @@ async function broadcast(io: any, roomCode: string): Promise<void> {
   const { getSessionState } = await import('./sessionService');
   const state = await getSessionState(roomCode);
   io.to(`session:${roomCode}`).emit('session_state_update', state);
+
+  if (state?.session?.id) {
+    try {
+      const { calculateSessionScores } = await import('./scoringService');
+      const scores = await calculateSessionScores(state.session.id);
+      io.to(`session:${roomCode}`).emit('leaderboard:update', {
+        roomCode,
+        revision: Date.now(),
+        isTeamGame: scores.isTeamGame,
+        teamLeaderboard: scores.teams,
+        individualLeaderboard: scores.individuals,
+        timeBonusConfig: scores.timeBonusConfig,
+      });
+    } catch (err) {
+      console.error('[Sweep] Error calculating leaderboard update:', err);
+    }
+  }
 }
 
 /**
@@ -59,15 +79,13 @@ export async function sweepOnce(io: any): Promise<{ locked: number; advanced: nu
   let locked = 0;
   let advanced = 0;
 
-  // ── 1. AUTO-LOCK expired questions (RAPID_FIRE only) ─────────────────────
+  // ── 1. AUTO-LOCK expired questions ──────────────────────────────────────
   const due = await prisma.session.findMany({
     where: { status: 'QUESTION_ACTIVE', questionEndsAt: { lte: now } },
     include: { currentGame: { select: { template: true } } },
   });
 
   for (const session of due) {
-    if (templateOf(session) !== 'RAPID_FIRE') continue;
-
     const autoAdvanceAt = new Date(now.getTime() + REVEAL_WINDOW_MS);
     // Claim atomically: ONLY a row still QUESTION_ACTIVE with an expired
     // deadline can be auto-locked. A racing host lock/end/select loses here.
@@ -96,12 +114,10 @@ export async function sweepOnce(io: any): Promise<{ locked: number; advanced: nu
   // ── 2. AUTO-ADVANCE past the reveal window (locked → next / RESULTS) ─────
   const dueAdvance = await prisma.session.findMany({
     where: { autoAdvanceAt: { lte: now } },
-    include: { currentGame: { select: { template: true } } },
+    include: { currentGame: { include: { challenges: { orderBy: { position: 'asc' } } } } },
   });
 
   for (const session of dueAdvance) {
-    if (templateOf(session) !== 'RAPID_FIRE') continue;
-
     // Claim atomically: only sessions still QUESTION_LOCKED with this exact
     // schedule can advance. If the host locked again / switched / ended, this
     // claim misses and the pending schedule is left to the next pass to clear

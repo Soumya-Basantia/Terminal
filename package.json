@@ -1,7 +1,11 @@
 {
+  "scripts": {
+    "seed:codenex-gm": "node server/src/prisma/seed-codenex-gm-loader.js"
+  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
+    "playwright-core": "^1.64.0",
     "prisma": "^5.22.0"
   },
   "dependencies": {

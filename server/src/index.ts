@@ -39,6 +39,12 @@ const corsOrigin = (origin: string | undefined, callback: (err: Error | null, al
   if (allowedOrigins.some((o) => o.includes('netlify.app')) && origin.endsWith('.netlify.app')) {
     return callback(null, true);
   }
+  if (origin.endsWith('.devtunnels.ms') || origin.endsWith('.app.github.dev')) {
+    return callback(null, true);
+  }
+  if (origin.endsWith('.trycloudflare.com') || origin.endsWith('.ngrok-free.app') || origin.endsWith('.ngrok.app')) {
+    return callback(null, true);
+  }
   return callback(null, false);
 };
 
@@ -126,8 +132,9 @@ setupSocketHandlers(io);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, async () => {
-  console.log(`\n🚀 TERMINAL server running on http://localhost:${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+httpServer.listen(Number(PORT), HOST, async () => {
+  console.log(`\n🚀 TERMINAL server running on http://${HOST}:${PORT}`);
   console.log(`📡 Socket.IO ready`);
   console.log(`🌐 CORS origins: ${rawClientUrl}\n`);
   await ensureAdminUser();

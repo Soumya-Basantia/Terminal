@@ -407,9 +407,14 @@ export async function applySessionTransition(
     ...(opts.data ?? {}),
   };
 
+  if (to === 'RESULTS') {
+    data.questionEndsAt = null;
+    data.autoAdvanceAt = null;
+  }
   if (to === 'ENDED') {
     data.endedAt = now;
     data.questionEndsAt = null;
+    data.autoAdvanceAt = null;
   }
   if (to === 'STARTING' || to === 'ROUND_ACTIVE' || to === 'QUESTION_ACTIVE') {
     if (!session.startedAt) data.startedAt = now;
@@ -435,6 +440,21 @@ export async function applySessionTransition(
     const { getSessionState } = await import('./sessionService');
     const state = await getSessionState(updated.roomCode);
     opts.io.to(`session:${updated.roomCode}`).emit('session_state_update', state);
+
+    try {
+      const { calculateSessionScores } = await import('./scoringService');
+      const scores = await calculateSessionScores(session.id);
+      opts.io.to(`session:${updated.roomCode}`).emit('leaderboard:update', {
+        roomCode: updated.roomCode,
+        revision: Date.now(),
+        isTeamGame: scores.isTeamGame,
+        teamLeaderboard: scores.teams,
+        individualLeaderboard: scores.individuals,
+        timeBonusConfig: scores.timeBonusConfig,
+      });
+    } catch (err) {
+      console.error('[Transition] Error calculating leaderboard update:', err);
+    }
   }
 
   return updated;
@@ -510,8 +530,14 @@ export async function startQuestion(
   // Load the frozen snapshot challenge to get the authoritative time limit.
   const snapshot: any = (session as any).snapshot;
   const snapChallenges: any[] = Array.isArray(snapshot?.challenges) ? snapshot.challenges : [];
-  const snapCh = snapChallenges.find((c: any) => c.id === challengeId);
-  const timeLimit = snapCh?.timeLimit || 30;
+  let snapCh = snapChallenges.find((c: any) => c.id === challengeId);
+  if (!snapCh && (session as any).currentGame?.challenges) {
+    snapCh = (session as any).currentGame.challenges.find((c: any) => c.id === challengeId);
+  }
+  const timeLimit = snapCh?.timeLimit || snapCh?.timerSecs || 30;
+  const allCh = snapChallenges.length > 0 ? snapChallenges : ((session as any).currentGame?.challenges || []);
+  const idx = allCh.findIndex((c: any) => c.id === challengeId);
+  const position = idx >= 0 ? idx : 0;
 
   // The host may freely re-arm or SWITCH questions while a question is live
   // (legacy host behavior — jump to any question at any time). The strict
@@ -528,6 +554,7 @@ export async function startQuestion(
       data: {
         status: 'QUESTION_ACTIVE',
         currentChallengeId: challengeId,
+        currentPosition: position,
         challengeStartTime: now,
         questionEndsAt: endsAt,
         startedAt: session.startedAt || now,
@@ -568,6 +595,7 @@ export async function startQuestion(
     data: {
       status: 'QUESTION_ACTIVE',
       currentChallengeId: challengeId,
+      currentPosition: position,
       challengeStartTime: now,
       questionEndsAt: endsAt,
       startedAt: session.startedAt || now,
@@ -667,6 +695,21 @@ export async function finalizeSession(
     await purgeGameSessionChat(updated.id, updated.roomCode, opts.io);
     const state = await getSessionState(updated.roomCode);
     opts.io.to(`session:${updated.roomCode}`).emit('session_state_update', state);
+
+    try {
+      const { calculateSessionScores } = await import('./scoringService');
+      const scores = await calculateSessionScores(session.id);
+      opts.io.to(`session:${updated.roomCode}`).emit('leaderboard:update', {
+        roomCode: updated.roomCode,
+        revision: Date.now(),
+        isTeamGame: scores.isTeamGame,
+        teamLeaderboard: scores.teams,
+        individualLeaderboard: scores.individuals,
+        timeBonusConfig: scores.timeBonusConfig,
+      });
+    } catch (err) {
+      console.error('[Finalize] Error calculating leaderboard update:', err);
+    }
   }
 
   return { session: updated, alreadyEnded: false };

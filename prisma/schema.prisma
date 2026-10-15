@@ -170,6 +170,7 @@ model User {
   approvalStatus ApprovalStatus  @default(APPROVED)
   accountStatus  AccountStatus   @default(ACTIVE)
   isVerified     Boolean         @default(false)
+  mustChangePassword Boolean     @default(false)
   lastLogin      DateTime?
   lastActivity   DateTime?
   name           String?

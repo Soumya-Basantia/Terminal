@@ -18,8 +18,24 @@ export default function LobbyPage() {
   const [tick, setTick] = useState(0);
   const socketRef = useRef<ReturnType<typeof connectSocket> | null>(null);
 
-  const user = JSON.parse(localStorage.getItem('terminal_user') || 'null');
-  const player = JSON.parse(localStorage.getItem('terminal_player') || 'null') || user;
+  const user = (() => {
+    try {
+      const raw = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('terminal_user') : null)
+        || (typeof localStorage !== 'undefined' ? localStorage.getItem('terminal_user') : null);
+      return JSON.parse(raw || 'null');
+    } catch {
+      return null;
+    }
+  })();
+  const player = (() => {
+    try {
+      const raw = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('terminal_player') : null)
+        || (typeof localStorage !== 'undefined' ? localStorage.getItem('terminal_player') : null);
+      return JSON.parse(raw || 'null') || user;
+    } catch {
+      return user;
+    }
+  })();
   const code = sessionCode?.toUpperCase() || '';
 
   // Blinking cursor tick
@@ -31,18 +47,48 @@ export default function LobbyPage() {
   useEffect(() => {
     if (!player) { navigate('/login'); return; }
 
+    let socketSetup = false;
+
     const socket = connectSocket();
     socketRef.current = socket;
 
-    socket.on('connect', () => {
-      setConnected(true);
-      socket.emit('player:join', { roomCode: code });
-    });
-    socket.on('disconnect', () => setConnected(false));
+    const setupSocketListeners = () => {
+      if (socketSetup) return;
+      socketSetup = true;
+
+      socket.on('connect', () => {
+        setConnected(true);
+        socket.emit('player:join', { roomCode: code });
+      });
+      socket.on('disconnect', () => setConnected(false));
+
+      // If already connected when we get here, join immediately
+      if (socket.connected) {
+        setConnected(true);
+        socket.emit('player:join', { roomCode: code });
+      }
+    };
+
+    // Register in DB first, then set up socket — mirrors BattleLobby flow
+    api.post('/sessions/join', { roomCode: code })
+      .then(() => {
+        setupSocketListeners();
+      })
+      .catch((err: any) => {
+        const msg = err?.response?.data?.error || 'Failed to join session.';
+        // Still attempt socket setup so the page isn't completely dead,
+        // but the player:join socket event will produce a server-side error.
+        console.error('[LobbyPage] /sessions/join failed:', msg);
+        setupSocketListeners();
+      });
 
     const onStateUpdate = (data: SessionStatePayload) => {
       setState(data);
       setPlayerCount(data.playerCount);
+      const status = data.session?.status;
+      if (status && status !== 'LOBBY' && status !== 'STARTING') {
+        navigate(`/play/${code}`);
+      }
     };
 
     socket.on('session:state', onStateUpdate);
@@ -66,6 +112,7 @@ export default function LobbyPage() {
     });
 
     socket.on('game:started', () => navigate(`/play/${code}`));
+    socket.on('challenge:started', () => navigate(`/play/${code}`));
 
     socket.on('broadcast:created', (data: { id: string; message: string }) => {
       setBroadcasts(b => [data, ...b].slice(0, 5));
@@ -75,20 +122,20 @@ export default function LobbyPage() {
       setTeams(t => [...t, team]);
     });
 
+    // Initial state load — uses the same SessionStatePayload shape as socket updates
     api.get(`/sessions/${code}`).then(res => {
-      setPlayers(res.data.session.players || []);
-      setTeams(res.data.session.teams || []);
-      setPlayerCount(res.data.session.players?.length || 0);
-    }).catch(() => navigate('/login'));
+      onStateUpdate(res.data as SessionStatePayload);
+    }).catch(() => {/* session may 404 if code is wrong; socket will handle it */});
 
     return () => {
       socket.off('connect'); socket.off('disconnect');
       socket.off('session:state'); socket.off('session_state_update');
       socket.off('player:joined'); socket.off('player:left');
       socket.off('player:removed'); socket.off('game:started');
+      socket.off('challenge:started');
       socket.off('broadcast:created'); socket.off('team:created');
     };
-  }, [code]);
+  }, [code, navigate]);
 
   const gameName = state?.game.name || '...';
   const teamsEnabled = state?.game.teamsEnabled;
@@ -214,13 +261,15 @@ export default function LobbyPage() {
                 <p className="font-mono font-black text-sm text-[#00ffcc] truncate">
                   {player?.displayName}<span className="text-[#5e6b7c]">@terminal</span>
                 </p>
-                {playerTeam ? (
-                  <p className="text-[10px] mt-0.5">
-                    <span className="text-[#5e6b7c]">SQUAD:</span>{' '}
-                    <strong style={{ color: playerTeam.color }}>{playerTeam.name}</strong>
-                  </p>
-                ) : teamsEnabled ? (
-                  <p className="text-[10px] text-[#5e6b7c] mt-0.5">AWAITING SQUAD ASSIGNMENT</p>
+                {teamsEnabled ? (
+                  playerTeam ? (
+                    <p className="text-[10px] mt-0.5">
+                      <span className="text-[#5e6b7c]">SQUAD:</span>{' '}
+                      <strong style={{ color: playerTeam.color }}>{playerTeam.name}</strong>
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-[#5e6b7c] mt-0.5">AWAITING SQUAD ASSIGNMENT</p>
+                  )
                 ) : (
                   <p className="text-[10px] text-[#5e6b7c] mt-0.5">SOLO COMBAT MODE</p>
                 )}

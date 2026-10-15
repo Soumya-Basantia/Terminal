@@ -5,7 +5,8 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_U
 let socket: Socket | null = null;
 
 export function getSocket(): Socket {
-  const token = localStorage.getItem('terminal_token') || localStorage.getItem('token');
+  const token = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('terminal_token') : null)
+    || (typeof localStorage !== 'undefined' ? localStorage.getItem('terminal_token') || localStorage.getItem('token') : null);
   if (!socket || !socket.connected) {
     socket = io(SOCKET_URL, {
       autoConnect: false,

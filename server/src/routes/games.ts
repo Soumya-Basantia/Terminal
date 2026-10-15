@@ -177,10 +177,14 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
       res.status(403).json({ error: 'Account has been rejected by administrator', approvalStatus: 'REJECTED' });
       return;
     }
+    if (user.mustChangePassword) {
+      res.status(403).json({ error: 'Password change required before accessing Game Master functionality', code: 'PASSWORD_CHANGE_REQUIRED', mustChangePassword: true });
+      return;
+    }
   }
 
   // Allow if SUPER_ADMIN, ADMIN, or APPROVED GAME_MASTER
-  let canCreate = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || (user.role === 'GAME_MASTER' && user.approvalStatus === 'APPROVED');
+  let canCreate = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || (user.role === 'GAME_MASTER' && user.approvalStatus === 'APPROVED' && !user.mustChangePassword);
   
   if (!canCreate) {
     // Check if they are a Club Admin anywhere
@@ -262,13 +266,210 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response): Prom
   res.json({ game });
 });
 
-// DELETE /api/games/:id
+// DELETE /api/games/:id — Delete an unplayed game
 router.delete('/:id', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
-  const existing = await verifyGameAccess(req.params.id as string, req.userId!, res);
-  if (!existing) return;
+  const gameId = String(req.params.id ?? '').trim();
+  const userId = req.userId;
 
-  await prisma.game.delete({ where: { id: req.params.id as string } });
-  res.json({ success: true });
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  if (!gameId) {
+    res.status(400).json({ error: 'Game ID is required' });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  if (user.role === 'GAME_MASTER') {
+    if (user.approvalStatus === 'PENDING') {
+      res.status(403).json({ error: 'Account pending administrator approval', approvalStatus: 'PENDING' });
+      return;
+    }
+    if (user.approvalStatus === 'REJECTED') {
+      res.status(403).json({ error: 'Account has been rejected by administrator', approvalStatus: 'REJECTED' });
+      return;
+    }
+    if (user.mustChangePassword) {
+      res.status(403).json({ error: 'Password change required before accessing Game Master functionality', mustChangePassword: true });
+      return;
+    }
+  }
+
+  if (user.role === 'PLAYER') {
+    res.status(403).json({ error: 'Forbidden: Students cannot delete games' });
+    return;
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Lock the game row for update to prevent concurrent starts or duplicate deletes
+      const lockedRows = await tx.$queryRaw<Array<{ id: string; designerId: string; clubId: string | null; name: string }>>`
+        SELECT id, "designerId", "clubId", name FROM "games" WHERE id = ${gameId} FOR UPDATE
+      `;
+
+      if (!lockedRows || lockedRows.length === 0) {
+        return { status: 404, error: 'Game not found' };
+      }
+
+      const targetGame = lockedRows[0];
+
+      // 2. Ownership & Authorization check
+      let isAuthorized = false;
+      if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+        isAuthorized = true;
+      } else if (targetGame.designerId === userId) {
+        isAuthorized = true;
+      } else if (targetGame.clubId) {
+        const membership = await tx.clubMember.findUnique({
+          where: { clubId_userId: { clubId: targetGame.clubId, userId } }
+        });
+        if (membership && membership.role === 'ADMIN') {
+          isAuthorized = true;
+        }
+      }
+
+      if (!isAuthorized) {
+        return { status: 403, error: 'Forbidden: You do not have permission to delete this game' };
+      }
+
+      // 3. Check for active, starting, or running sessions
+      const activeCurrentSession = await tx.session.findFirst({
+        where: {
+          currentGameId: gameId,
+          status: { not: 'ENDED' }
+        },
+        select: { id: true, roomCode: true, status: true }
+      });
+
+      if (activeCurrentSession) {
+        return {
+          status: 409,
+          error: `Cannot delete game: A session [${activeCurrentSession.roomCode}] is currently active (${activeCurrentSession.status}). End the session before deleting.`
+        };
+      }
+
+      // Check if any event containing this game has an active session
+      const activeEventSession = await tx.session.findFirst({
+        where: {
+          event: {
+            games: {
+              some: { gameId }
+            }
+          },
+          status: { not: 'ENDED' }
+        },
+        select: { id: true, roomCode: true, status: true }
+      });
+
+      if (activeEventSession) {
+        return {
+          status: 409,
+          error: `Cannot delete game: An event containing this game currently has an active session [${activeEventSession.roomCode}]. End the session before deleting.`
+        };
+      }
+
+      // 4. Check for recorded gameplay history (submissions and completed gameplay)
+      // Check submissions across challenges of this game
+      const submissionCount = await tx.submission.count({
+        where: {
+          challenge: { gameId }
+        }
+      });
+
+      if (submissionCount > 0) {
+        return {
+          status: 409,
+          error: `Cannot delete game: This game has ${submissionCount} recorded player submission(s) and gameplay history that must be preserved.`
+        };
+      }
+
+      // Check if any session that ran this game has recorded history (players joined, started, or submissions)
+      const sessionWithHistory = await tx.session.findFirst({
+        where: {
+          currentGameId: gameId,
+          OR: [
+            { startedAt: { not: null } },
+            { players: { some: {} } },
+            { submissions: { some: {} } }
+          ]
+        },
+        select: { id: true, roomCode: true }
+      });
+
+      if (sessionWithHistory) {
+        return {
+          status: 409,
+          error: `Cannot delete game: This game has recorded session history in room [${sessionWithHistory.roomCode}] that must be retained.`
+        };
+      }
+
+      // Check if an event containing this game ran a session with submissions
+      const eventWithSubmissions = await tx.submission.findFirst({
+        where: {
+          session: {
+            event: {
+              games: {
+                some: { gameId }
+              }
+            }
+          },
+          challenge: { gameId }
+        }
+      });
+
+      if (eventWithSubmissions) {
+        return {
+          status: 409,
+          error: 'Cannot delete game: Historical scores or submissions are linked to this game.'
+        };
+      }
+
+      // 5. Eligible for permanent deletion!
+      // Detach any empty, unplayed, ended sessions pointing to this game
+      await tx.session.updateMany({
+        where: { currentGameId: gameId },
+        data: { currentGameId: null }
+      });
+
+      // Remove EventGame links
+      await tx.eventGame.deleteMany({
+        where: { gameId }
+      });
+
+      // Remove Challenges (confirmed 0 submissions)
+      await tx.challenge.deleteMany({
+        where: { gameId }
+      });
+
+      // Delete the Game record
+      await tx.game.delete({
+        where: { id: gameId }
+      });
+
+      return {
+        status: 200,
+        success: true,
+        message: `Game '${targetGame.name}' was permanently deleted.`
+      };
+    });
+
+    if (result.error) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+
+    res.status(200).json({ success: true, message: result.message });
+  } catch (error: any) {
+    console.error('[DELETE /api/games/:id]', error);
+    res.status(500).json({ error: 'Internal server error during game deletion' });
+  }
 });
 
 // POST /api/games/:id/publish

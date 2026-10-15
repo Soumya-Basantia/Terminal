@@ -140,6 +140,17 @@ router.get('/:sessionId/report', authenticate, async (req: AuthRequest, res: Res
     return;
   }
 
+  if (requester.role === 'GAME_MASTER') {
+    if (requester.approvalStatus !== 'APPROVED') {
+      res.status(403).json({ error: 'Forbidden: Game Master pending approval' });
+      return;
+    }
+    if (requester.mustChangePassword) {
+      res.status(403).json({ error: 'Password change required before accessing Game Master functionality', mustChangePassword: true });
+      return;
+    }
+  }
+
   // 3. Load session — try by ID first, then by room code
   const session = await prisma.session.findFirst({
     where: {
@@ -174,8 +185,8 @@ router.get('/:sessionId/report', authenticate, async (req: AuthRequest, res: Res
     return;
   }
 
-  // 4. Authorize: requester must be authorized for this event
-  const isAuthorized = await checkEventAuthorization(session.eventId, userId);
+  // 4. Authorize: requester must be authorized for this event or be the session's host GM
+  const isAuthorized = (session.gmId && session.gmId === userId) || await checkEventAuthorization(session.eventId, userId);
   if (!isAuthorized) {
     res.status(403).json({ error: 'Forbidden: You are not authorized for this session' });
     return;
@@ -384,9 +395,9 @@ router.get('/:sessionId/report', authenticate, async (req: AuthRequest, res: Res
   if (teamsEnabled && teamResults.length > 0) {
     if (hasTimeBonus) {
       ws1.getColumn('E').width = 14;  // BASE SCORE
-      ws1.getColumn('F').width = 14;  // TIME BONUS
+      ws1.getColumn('F').width = 14;  // SPEED BONUS
       ws1.getColumn('G').width = 16;  // FINAL SCORE
-      const hRow = ws1.addRow(['RANK', 'TEAM NAME', 'MEMBERS', 'INDIVIDUAL SCORES', 'BASE SCORE', 'TIME BONUS', 'FINAL SCORE']);
+      const hRow = ws1.addRow(['RANK', 'TEAM NAME', 'MEMBERS', 'INDIVIDUAL SCORES', 'BASE SCORE', 'SPEED BONUS', 'FINAL SCORE']);
       hRow.height = 22;
       applyHeaderRow(hRow, 'FF' + TERMINAL_DARK, 'FF' + TERMINAL_GREEN);
       hRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };

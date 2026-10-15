@@ -190,7 +190,8 @@ router.get('/gm', async (req: AuthRequest, res: Response): Promise<void> => {
       role: true,
       approvalStatus: true,
       accountStatus: true,
-      isVerified: true
+      isVerified: true,
+      mustChangePassword: true,
     }
   });
 
@@ -205,6 +206,27 @@ router.get('/gm', async (req: AuthRequest, res: Response): Promise<void> => {
     return;
   }
 
+  // First-login password change enforcement
+  if (user.role === 'GAME_MASTER' && user.mustChangePassword) {
+    res.json({
+      gm: {
+        id: user.id,
+        name: user.name || user.username,
+        email: user.email,
+        phone: user.phoneNumber || 'Not provided',
+        approvalStatus: user.approvalStatus,
+        role: user.role,
+        mustChangePassword: true,
+      },
+      notice: 'SECURITY NOTICE: Temporary password in use. Password change is required on first login before accessing normal workspace functionality.',
+      mustChangePassword: true,
+      events: [],
+      games: [],
+      sessions: []
+    });
+    return;
+  }
+
   // Pending Game Master: return limited profile view with pending notice
   if (user.role === 'GAME_MASTER' && user.approvalStatus === 'PENDING') {
     res.json({
@@ -214,7 +236,8 @@ router.get('/gm', async (req: AuthRequest, res: Response): Promise<void> => {
         email: user.email,
         phone: user.phoneNumber || 'Not provided',
         approvalStatus: 'PENDING',
-        role: user.role
+        role: user.role,
+        mustChangePassword: false,
       },
       notice: 'Your Game Master account is pending administrator approval. Workspace management features will activate once approved.',
       events: [],

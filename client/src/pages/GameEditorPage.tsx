@@ -339,9 +339,16 @@ function ChallengeEditor({
             </div>
           )}
 
-          {/* Question type selection */}
+          {/* Question Header & Type selection */}
           <div className="mb-6">
-            <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">&gt; PROTOCOL QUESTION TYPE</label>
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-mono text-sm font-black text-white uppercase tracking-wider">
+                QUESTION {String(index + 1).padStart(2, '0')}
+              </span>
+              <span className="font-mono text-[10px] font-bold text-[var(--term-cyan)] uppercase">
+                [{local.type.replace('_', ' ')}]
+              </span>
+            </div>
             <div className="flex flex-wrap gap-2">
               {(['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE'] as ChallengeType[]).map(t => (
                 <button
@@ -354,20 +361,22 @@ function ChallengeEditor({
                       : 'border-[var(--border-brutal)] text-[var(--text-secondary)] hover:border-white hover:text-white bg-[var(--bg-surface)]'
                   }`}
                 >
-                  {t === 'SINGLE_CHOICE' ? '○ SINGLE CHOICE (1 ANSWER)' :
-                   t === 'MULTIPLE_CHOICE' ? '☑ MULTIPLE CHOICE (1+ ANSWERS)' :
+                  {t === 'SINGLE_CHOICE' ? '○ SINGLE CHOICE' :
+                   t === 'MULTIPLE_CHOICE' ? '☑ MULTIPLE CHOICE' :
                    '● TRUE / FALSE'}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Prompt */}
+          {/* Question text */}
           <div className="mb-6">
-            <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">&gt; QUERY PARAMETERS (QUESTION TEXT)</label>
+            <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
+              QUESTION TEXT
+            </label>
             <textarea
               className="brutalist-input w-full p-3 font-mono bg-[var(--bg-surface)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none min-h-[80px]"
-              placeholder="Enter question text or query prompt..."
+              placeholder="Enter question text..."
               value={local.prompt}
               onChange={e => update({ prompt: e.target.value })}
             />
@@ -376,14 +385,42 @@ function ChallengeEditor({
           {/* Options Display */}
           {local.type !== 'TRUE_FALSE' ? (
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block">
-                  &gt; EXPECTED OUTPUTS ({local.type === 'SINGLE_CHOICE' ? 'SELECT EXACTLY ONE CORRECT' : 'SELECT ONE OR MORE CORRECT'})
-                </label>
-                <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                  {local.type === 'SINGLE_CHOICE' ? 'RADIO: Clicking an option selects it exclusively' : 'CHECKBOX: Toggle individual options'}
-                </span>
+              {/* Correct Answer Quick Selector */}
+              <div className="mb-3 p-2.5 bg-[var(--bg-surface)] border-2 border-[var(--border-brutal)]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-xs font-black text-white uppercase tracking-wider">
+                    CORRECT ANSWER
+                  </span>
+                  <span className="font-mono text-[10px] text-[var(--term-text-muted)]">
+                    {local.type === 'SINGLE_CHOICE' ? 'Radio: exactly one correct' : 'Checkboxes: one or more correct'}
+                  </span>
+                </div>
+                <div className="flex gap-4">
+                  {OPTION_LABELS.map((lbl, oi) => {
+                    const optText = (local.options || [])[oi] || '';
+                    const isCorrect = isOptionCorrect(optText, oi);
+                    return (
+                      <button
+                        key={lbl}
+                        type="button"
+                        role={local.type === 'SINGLE_CHOICE' ? 'radio' : 'checkbox'}
+                        aria-checked={isCorrect}
+                        onClick={() => toggleOptionCorrect(optText, oi)}
+                        className={`flex items-center gap-1.5 px-3 py-1 font-mono text-xs font-bold border-2 transition-colors cursor-pointer ${
+                          isCorrect
+                            ? 'border-[var(--success)] bg-[rgba(63,185,80,0.18)] text-[var(--success)] shadow-[2px_2px_0px_#000]'
+                            : 'border-[var(--border-brutal)] text-[var(--text-muted)] hover:border-white hover:text-white bg-[var(--bg-base)]'
+                        }`}
+                      >
+                        <span>{local.type === 'SINGLE_CHOICE' ? (isCorrect ? '(•)' : '( )') : (isCorrect ? '[✓]' : '[ ]')}</span>
+                        <span>{lbl}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+
+              {/* Options text inputs A, B, C, D */}
               <div className="grid gap-3">
                 {(local.options || ['', '', '', '']).map((opt, oi) => {
                   const isCorrect = isOptionCorrect(opt, oi);
@@ -399,17 +436,13 @@ function ChallengeEditor({
                           isCorrect
                             ? 'border-[var(--success)] bg-[rgba(63,185,80,0.18)] text-[var(--success)] shadow-[2px_2px_0px_#000]'
                             : 'border-[var(--border-brutal)] text-[var(--text-muted)] hover:border-[var(--text-secondary)] hover:text-white bg-[var(--bg-surface)]'
-                        } ${local.type === 'SINGLE_CHOICE' ? 'rounded-full' : 'rounded-none'}`}
+                        }`}
                       >
-                        {local.type === 'SINGLE_CHOICE' ? (
-                          <span className="text-base">{isCorrect ? '●' : '○'} <span className="text-xs">{OPTION_LABELS[oi]}</span></span>
-                        ) : (
-                          <span className="text-base">{isCorrect ? '☑' : '☐'} <span className="text-xs">{OPTION_LABELS[oi]}</span></span>
-                        )}
+                        <span className="text-sm font-bold">{OPTION_LABELS[oi]}.</span>
                       </button>
                       <input
                         className="brutalist-input flex-1 p-3 font-mono bg-[var(--bg-surface)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none"
-                        placeholder={`Output Vector ${OPTION_LABELS[oi]} text...`}
+                        placeholder={`Option ${OPTION_LABELS[oi]} text...`}
                         value={opt}
                         onChange={e => handleOptionTextChange(oi, e.target.value)}
                       />
@@ -420,7 +453,9 @@ function ChallengeEditor({
             </div>
           ) : (
             <div className="mb-6">
-              <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">&gt; BOOLEAN TARGET (EXACTLY ONE CORRECT)</label>
+              <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
+                CORRECT ANSWER (EXACTLY ONE)
+              </label>
               <div className="flex gap-4">
                 {['True', 'False'].map(v => {
                   const isSelected = local.answer === v;
@@ -437,7 +472,7 @@ function ChallengeEditor({
                           : 'border-[var(--border-brutal)] text-[var(--text-secondary)] hover:border-white hover:text-white bg-[var(--bg-surface)]'
                       }`}
                     >
-                      <span>{isSelected ? '●' : '○'}</span>
+                      <span>{isSelected ? '(•)' : '( )'}</span>
                       <span>{v}</span>
                     </button>
                   );
@@ -446,29 +481,66 @@ function ChallengeEditor({
             </div>
           )}
 
-          {/* Points + Timer */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          {/* Points, Time Limit, Difficulty */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div>
-              <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">&gt; POINTS</label>
-              <input className="brutalist-input w-full p-2 font-mono bg-[var(--bg-surface)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none" type="number" min={1} max={100} value={local.points} onChange={e => update({ points: Number(e.target.value) })} />
+              <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">
+                POINTS
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  className="brutalist-input w-full p-2.5 font-mono bg-[var(--bg-surface)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none font-bold"
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={local.points}
+                  onChange={e => update({ points: Number(e.target.value) })}
+                />
+                <span className="font-mono text-xs font-bold text-[var(--text-muted)]">pts</span>
+              </div>
             </div>
             <div>
-              <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">&gt; TIME (S)</label>
-              <input className="brutalist-input w-full p-2 font-mono bg-[var(--bg-surface)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none" type="number" min={5} max={300} value={local.timerSecs} onChange={e => update({ timerSecs: Number(e.target.value) })} />
+              <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">
+                TIME LIMIT
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  className="brutalist-input w-full p-2.5 font-mono bg-[var(--bg-surface)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none font-bold"
+                  type="number"
+                  min={5}
+                  max={600}
+                  value={local.timerSecs}
+                  onChange={e => update({ timerSecs: Number(e.target.value) })}
+                />
+                <span className="font-mono text-xs font-bold text-[var(--text-muted)]">sec</span>
+              </div>
             </div>
             <div>
-              <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">&gt; DIFF LEVEL</label>
-              <select className="brutalist-input w-full p-2 font-mono bg-[var(--bg-surface)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none" value={local.difficulty} onChange={e => update({ difficulty: e.target.value as Difficulty })}>
-                <option value="EASY">EASY</option>
-                <option value="MEDIUM">MEDIUM</option>
-                <option value="HARD">HARD</option>
+              <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">
+                DIFFICULTY
+              </label>
+              <select
+                className="brutalist-input w-full p-2.5 font-mono bg-[var(--bg-surface)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none font-bold"
+                value={local.difficulty}
+                onChange={e => update({ difficulty: e.target.value as Difficulty })}
+              >
+                <option value="EASY">EASY ▼</option>
+                <option value="MEDIUM">MEDIUM ▼</option>
+                <option value="HARD">HARD ▼</option>
               </select>
             </div>
           </div>
 
           <div className="mb-6">
-            <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">&gt; RESOLUTION LOG (EXPLANATION)</label>
-            <input className="brutalist-input w-full p-3 font-mono bg-[var(--bg-surface)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none" placeholder="Context provided upon completion..." value={local.explanation || ''} onChange={e => update({ explanation: e.target.value })} />
+            <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-2">
+              EXPLANATION
+            </label>
+            <textarea
+              className="brutalist-input w-full p-3 font-mono bg-[var(--bg-surface)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none min-h-[60px]"
+              placeholder="Explanation shown after question is finalized..."
+              value={local.explanation || ''}
+              onChange={e => update({ explanation: e.target.value })}
+            />
           </div>
 
           {/* Actions */}
@@ -873,7 +945,27 @@ export default function GameEditorPage() {
   const [publishing, setPublishing] = useState(false);
   const [publishMsg, setPublishMsg] = useState('');
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const dirtySavesRef = useRef<Map<string, () => Promise<boolean>>>(new Map());
+
+  async function handleDeleteGame() {
+    if (!game || isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.delete(`/games/${game.id}`);
+      queryClient.invalidateQueries({ queryKey: ['games'] });
+      queryClient.invalidateQueries({ queryKey: ['workspace', 'gm'] });
+      navigate(clubId ? `/clubs/${clubId}` : '/gm?tab=games', { replace: true });
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Failed to delete module';
+      setDeleteError(errorMsg);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   function handleDirtyChange(challengeId: string, isDirty: boolean, saveFn: () => Promise<boolean>) {
     if (isDirty) {
@@ -1012,6 +1104,18 @@ export default function GameEditorPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteError(null);
+              setDeleteModalOpen(true);
+            }}
+            aria-label={`Delete module ${game.name}`}
+            className="h-[38px] px-3 font-mono text-xs font-bold uppercase tracking-wider border-2 border-[var(--term-red)]/50 bg-[var(--term-red-glow)] text-[var(--term-red)] hover:border-[var(--term-red)] hover:bg-[var(--term-red)]/20 transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <Trash2 size={14} className="shrink-0" />
+            <span className="hidden sm:inline">DELETE MODULE</span>
+          </button>
           <span className="font-mono text-[10px] sm:text-xs text-[var(--term-text-muted)] font-bold hidden xs:inline">{totalQ} QUERIES</span>
           {game.status === 'PUBLISHED' ? (
             <BrutalistButton onClick={startSession} variant="primary" className="flex items-center gap-2">
@@ -1044,33 +1148,134 @@ export default function GameEditorPage() {
                 <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Max Players</label>
                 <input className="brutalist-input w-full p-2 font-mono bg-[var(--bg-base)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none" type="number" defaultValue={game.maxPlayers} onChange={e => setGameData(p => ({ ...p, maxPlayers: Number(e.target.value) }))} />
               </div>
-              <div className="flex items-center justify-between border-b-2 border-dashed border-[var(--border-brutal)] pb-3">
-                <span className="font-mono text-xs font-bold uppercase text-[var(--text-secondary)]">Teams Auth</span>
-                <input type="checkbox" defaultChecked={game.teamsEnabled} onChange={e => setGameData(p => ({ ...p, teamsEnabled: e.target.checked }))} className="w-4 h-4" />
-              </div>
-              <div className="flex items-center justify-between border-b-2 border-dashed border-[var(--border-brutal)] pb-3">
-                <span className="font-mono text-xs font-bold uppercase text-[var(--text-secondary)]">Speed Bonus</span>
-                <input type="checkbox" defaultChecked={game.speedBonus} onChange={e => setGameData(p => ({ ...p, speedBonus: e.target.checked }))} className="w-4 h-4" />
-              </div>
+              {/* Game Mode */}
               <div className="border-b-2 border-dashed border-[var(--border-brutal)] pb-3">
-                <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">Time Bonus (End Game)</label>
-                <input
-                  className="brutalist-input w-full p-2 font-mono bg-[var(--bg-base)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none text-xs"
-                  type="number"
-                  min={0}
-                  max={100}
-                  defaultValue={game.config?.timeBonusPoints ?? 10}
-                  onChange={e => setGameData(p => ({
-                    ...p,
-                    config: {
-                      ...((p.config || game.config) as any),
-                      timeBonusPoints: Number(e.target.value) || 0,
-                    }
-                  }))}
-                />
-                <span className="text-[10px] text-[var(--term-text-muted)] block mt-1">
-                  Bonus points added upon game finalization. Does not skew per-question averages.
-                </span>
+                <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1.5">
+                  GAME MODE
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGameData(p => ({ ...p, teamsEnabled: true }))}
+                    className={`flex-1 py-1.5 font-mono text-xs font-bold uppercase border-2 transition-colors cursor-pointer ${
+                      (gameData.teamsEnabled ?? game.teamsEnabled)
+                        ? 'border-[var(--term-green)] bg-[var(--term-green-glow)] text-[var(--term-green)]'
+                        : 'border-[var(--border-brutal)] text-[var(--text-muted)] bg-[var(--bg-base)] hover:text-white'
+                    }`}
+                  >
+                    [ TEAMS ]
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGameData(p => ({ ...p, teamsEnabled: false }))}
+                    className={`flex-1 py-1.5 font-mono text-xs font-bold uppercase border-2 transition-colors cursor-pointer ${
+                      !(gameData.teamsEnabled ?? game.teamsEnabled)
+                        ? 'border-[var(--term-cyan)] bg-[var(--term-cyan-glow)] text-[var(--term-cyan)]'
+                        : 'border-[var(--border-brutal)] text-[var(--text-muted)] bg-[var(--bg-base)] hover:text-white'
+                    }`}
+                  >
+                    [ INDIVIDUAL ]
+                  </button>
+                </div>
+              </div>
+
+              {/* Team Size (only when in TEAMS mode) */}
+              {(gameData.teamsEnabled ?? game.teamsEnabled) && (
+                <div className="border-b-2 border-dashed border-[var(--border-brutal)] pb-3">
+                  <label className="font-mono text-xs font-bold text-[var(--text-secondary)] uppercase block mb-1">
+                    TEAM SIZE
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="brutalist-input w-full p-2 font-mono bg-[var(--bg-base)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none text-xs font-bold"
+                      type="number"
+                      min={1}
+                      max={20}
+                      defaultValue={game.maxTeamSize || 4}
+                      onChange={e => setGameData(p => ({ ...p, maxTeamSize: Number(e.target.value) || 4 }))}
+                    />
+                    <span className="font-mono text-[10px] text-[var(--text-muted)] shrink-0">MAX / TEAM</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Scoring & Speed Bonus */}
+              <div className="border-b-2 border-dashed border-[var(--border-brutal)] pb-3">
+                <div className="text-[10px] font-mono font-black uppercase text-[var(--term-cyan)] mb-2 tracking-wider">
+                  // SCORING CONFIG
+                </div>
+
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-mono text-xs font-bold uppercase text-[var(--text-secondary)]">
+                    Speed Bonus
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setGameData(p => ({ ...p, speedBonus: !(p.speedBonus ?? game.speedBonus) }))}
+                    className={`px-3 py-1 font-mono text-xs font-bold uppercase border-2 transition-colors cursor-pointer ${
+                      (gameData.speedBonus ?? game.speedBonus)
+                        ? 'border-[var(--term-green)] bg-[var(--term-green-glow)] text-[var(--term-green)]'
+                        : 'border-[var(--border-brutal)] text-[var(--text-muted)] bg-[var(--bg-base)] hover:text-white'
+                    }`}
+                  >
+                    {(gameData.speedBonus ?? game.speedBonus) ? '[ ON ]' : '[ OFF ]'}
+                  </button>
+                </div>
+
+                {(gameData.speedBonus ?? game.speedBonus) && (
+                  <div className="flex flex-col gap-2.5 mb-2 pl-2 border-l-2 border-[var(--term-green)]">
+                    <div>
+                      <label className="font-mono text-[10px] font-bold text-[var(--text-secondary)] uppercase block mb-1">
+                        Max Bonus (Pts)
+                      </label>
+                      <input
+                        className="brutalist-input w-full p-1.5 font-mono bg-[var(--bg-base)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none text-xs"
+                        type="number"
+                        min={1}
+                        max={100}
+                        defaultValue={game.config?.maxSpeedBonus ?? 5}
+                        onChange={e => setGameData(p => ({
+                          ...p,
+                          config: {
+                            ...((p.config || game.config) as any),
+                            maxSpeedBonus: Number(e.target.value) || 5,
+                          }
+                        }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="font-mono text-[10px] font-bold text-[var(--text-secondary)] uppercase block mb-1">
+                        Bonus Window (Sec)
+                      </label>
+                      <input
+                        className="brutalist-input w-full p-1.5 font-mono bg-[var(--bg-base)] text-white border-2 border-[var(--border-brutal)] focus:border-[var(--accent-primary)] outline-none text-xs"
+                        type="number"
+                        min={0}
+                        max={300}
+                        placeholder="Full Time Limit"
+                        defaultValue={game.config?.speedBonusWindow ?? ''}
+                        onChange={e => setGameData(p => ({
+                          ...p,
+                          config: {
+                            ...((p.config || game.config) as any),
+                            speedBonusWindow: e.target.value ? Number(e.target.value) : undefined,
+                          }
+                        }))}
+                      />
+                      <span className="text-[9px] text-[var(--term-text-muted)] block mt-0.5">
+                        Defaults to question time limit
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Score explanation note */}
+                <div className="p-2.5 bg-[var(--bg-base)] border border-[var(--term-border-faint)] text-[10px] font-mono text-[var(--term-text-muted)] leading-relaxed mt-2.5">
+                  <span className="text-[var(--term-green)] font-bold block mb-1">// SCORING PROTOCOL:</span>
+                  Team score is calculated from the average of member scores.
+                  Unanswered questions count as 0.
+                  Speed Bonus rewards faster correct team responses.
+                </div>
               </div>
               {game.template === 'DATA_HUNT' && (
                 <>
@@ -1167,6 +1372,63 @@ export default function GameEditorPage() {
               className="flex items-center gap-2"
             >
               [ BACK TO EDITOR ]
+            </TerminalButton>
+          </div>
+        </div>
+      </TerminalModal>
+
+      {/* Delete Confirmation Modal */}
+      <TerminalModal
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          if (!isDeleting) {
+            setDeleteModalOpen(false);
+            setDeleteError(null);
+          }
+        }}
+        title="TERMINATION PROTOCOL: DELETE MODULE"
+        headerTag="// PERMANENT_ACTION_REQUIRED"
+        maxWidth="md"
+      >
+        <div className="p-4 sm:p-6 flex flex-col gap-4 font-mono">
+          <div className="p-3.5 bg-red-950/70 border-2 border-[var(--term-red)] text-white">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase text-[var(--term-red)] mb-2">
+              <AlertCircle size={16} />
+              WARNING: PERMANENT PURGE
+            </div>
+            <p className="text-sm leading-relaxed text-zinc-200">
+              You are about to permanently purge module <span className="text-white font-bold underline">{game.name}</span>.
+            </p>
+            <p className="text-xs text-zinc-400 mt-2">
+              This action cannot be undone. Games can only be deleted if they have never been played, have no recorded scores or submissions, and have no active running sessions.
+            </p>
+          </div>
+
+          {deleteError && (
+            <div className="p-3 bg-red-950/80 border border-[var(--term-red)] text-[var(--term-red)] text-xs font-bold">
+              // PURGE_REJECTED: {deleteError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <TerminalButton
+              variant="ghost"
+              onClick={() => {
+                setDeleteModalOpen(false);
+                setDeleteError(null);
+              }}
+              disabled={isDeleting}
+            >
+              CANCEL
+            </TerminalButton>
+            <TerminalButton
+              variant="danger"
+              onClick={handleDeleteGame}
+              disabled={isDeleting}
+              className="flex items-center gap-2"
+            >
+              <Trash2 size={14} />
+              {isDeleting ? 'PURGING...' : 'PURGE MODULE'}
             </TerminalButton>
           </div>
         </div>

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Terminal, ArrowRight, Shield } from 'lucide-react';
 
 export default function JoinPage() {
-  const [roomCode, setRoomCode] = useState('');
+  const { sessionCode } = useParams<{ sessionCode?: string }>();
+  const [roomCode, setRoomCode] = useState((sessionCode || '').toUpperCase());
   const navigate = useNavigate();
 
   const handleJoin = (e: React.FormEvent) => {
