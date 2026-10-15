@@ -20,37 +20,16 @@ import { setupSocketHandlers } from './sockets';
 import { errorHandler } from './middleware/errorHandler';
 import { ensureAdminUser } from './lib/adminInit';
 import { prisma } from './lib/prisma';
+import { resolveAllowedOrigins, createCorsOrigin, getCorsOptions } from './config/cors';
 
 dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
 
-const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-const allowedOrigins = rawClientUrl.split(',').map((s) => s.trim());
-const isProd = process.env.NODE_ENV === 'production';
-
-const corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-  if (!origin) return callback(null, true);
-  if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-    return callback(null, true);
-  }
-  if (allowedOrigins.some((o) => o.includes('vercel.app')) && origin.endsWith('.vercel.app')) {
-    return callback(null, true);
-  }
-  if (allowedOrigins.some((o) => o.includes('netlify.app')) && origin.endsWith('.netlify.app')) {
-    return callback(null, true);
-  }
-  if (!isProd) {
-    if (origin.endsWith('.devtunnels.ms') || origin.endsWith('.app.github.dev')) {
-      return callback(null, true);
-    }
-    if (origin.endsWith('.trycloudflare.com') || origin.endsWith('.ngrok-free.app') || origin.endsWith('.ngrok.app')) {
-      return callback(null, true);
-    }
-  }
-  return callback(null, false);
-};
+const { allowedOrigins, rawClientUrl } = resolveAllowedOrigins();
+const corsOrigin = createCorsOrigin(allowedOrigins);
+const corsOptions = getCorsOptions(allowedOrigins);
 
 const io = new Server(httpServer, {
   cors: {
@@ -102,7 +81,7 @@ app.use((_req, res, next) => {
   next();
 });
 
-app.use(cors({ origin: corsOrigin, credentials: true }));
+app.use(cors(corsOptions));
 
 // ── Body parsing — hard cap at 2 mb ──────────────────────────────────────────
 app.use(express.json({ limit: '2mb' }));
@@ -140,7 +119,8 @@ const HOST = process.env.HOST || '0.0.0.0';
 const serverInstance = httpServer.listen(Number(PORT), HOST, async () => {
   console.log(`\n🚀 TERMINAL server running on http://${HOST}:${PORT}`);
   console.log(`📡 Socket.IO ready`);
-  console.log(`🌐 CORS origins: ${rawClientUrl}\n`);
+  console.log(`🌐 Configured CLIENT_URL: ${rawClientUrl}`);
+  console.log(`🛡️ Allowed CORS origins: ${allowedOrigins.join(', ')}\n`);
   await ensureAdminUser();
 });
 

@@ -104,7 +104,7 @@ If you prefer setting Render's Root Directory directly to the backend folder:
 | `DIRECT_URL` | Supabase IPv4 Session Pooler connection string (`aws-0-[region].pooler.supabase.com:5432/postgres`) for Prisma schema/migrations. | **Required** |
 | `JWT_SECRET` | Cryptographically random secret (minimum 32 characters, e.g. `openssl rand -hex 32`). Server refuses to start if omitted. | **Required** |
 | `ADMIN_PASSWORD` | Strong password used **only on initial setup** if root administrator does not exist. | **Recommended** |
-| `CLIENT_URL` | Comma-separated list of allowed frontend origins for CORS (e.g. `https://terminal.vercel.app,https://yourdomain.com`). | **Required** |
+| `CLIENT_URL` | Comma-separated list of allowed frontend origins for CORS (e.g. `https://terminal-two-gilt.vercel.app,http://localhost:5173`). Defaults to `https://terminal-two-gilt.vercel.app`. | **Required** |
 | `NODE_ENV` | Must be set to `production`. | `production` |
 | `HOST` | Bind host (server defaults to `0.0.0.0`). | `0.0.0.0` |
 | `PORT` | Listening port (Render injects this dynamically, e.g. `10000`). | Set by host |
