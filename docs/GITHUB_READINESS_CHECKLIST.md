@@ -70,24 +70,50 @@ Read-only database validation queries were executed directly against PostgreSQL:
 
 ## 4. Production Environment Configuration Requirements
 
-Before deploying to production (e.g. Vercel for frontend + Railway / Render / AWS for backend):
+Before deploying to production (Vercel for frontend + Render for backend):
 
-### Backend Environment Variables (`server/.env`):
+### Render Backend Web Service Configuration:
+
+You can deploy the backend using either of the following two supported configurations:
+
+#### Option 1: Monorepo Root Configuration (Recommended & Default)
+Leave Render's Root Directory at the repository root. The root `package.json` now uses npm workspaces to coordinate backend dependencies and compilation:
+| Setting | Recommended Value | Notes |
+|---|---|---|
+| **Environment** | `Node` | Node 20+ LTS |
+| **Root Directory** | `.` (or leave blank) | Repository root |
+| **Build Command** | `npm install && npm run build` | Workspaces install all dependencies; runs Prisma generate + tsc |
+| **Start Command** | `npm run start` | Executes `node server/dist/index.js` via root proxy script |
+| **Health Check Path**| `/health` | Lightweight non-sensitive health endpoint returning `200 OK` |
+| **Auto-Deploy** | `Yes` (or manual trigger) | Deploys updates on `main` push |
+
+#### Option 2: Subdirectory Scoped Configuration (`server/`)
+If you prefer setting Render's Root Directory directly to the backend folder:
+| Setting | Recommended Value | Notes |
+|---|---|---|
+| **Environment** | `Node` | Node 20+ LTS |
+| **Root Directory** | `server` | Scopes CWD to backend directory |
+| **Build Command** | `npm install && npm run build` | Installs server dependencies, runs deterministic Prisma generator + tsc |
+| **Start Command** | `npm run start` | Executes `node dist/index.js` |
+| **Health Check Path**| `/health` | Lightweight non-sensitive health endpoint returning `200 OK` |
+
+### Backend Environment Variables (`server` on Render):
+| Variable | Description & Requirement | Secret / Value |
+|---|---|---|
+| `DATABASE_URL` | Supabase IPv4 Transaction Pooler connection string (`aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true`). | **Required** |
+| `DIRECT_URL` | Supabase IPv4 Session Pooler connection string (`aws-0-[region].pooler.supabase.com:5432/postgres`) for Prisma schema/migrations. | **Required** |
+| `JWT_SECRET` | Cryptographically random secret (minimum 32 characters, e.g. `openssl rand -hex 32`). Server refuses to start if omitted. | **Required** |
+| `ADMIN_PASSWORD` | Strong password used **only on initial setup** if root administrator does not exist. | **Recommended** |
+| `CLIENT_URL` | Comma-separated list of allowed frontend origins for CORS (e.g. `https://terminal.vercel.app,https://yourdomain.com`). | **Required** |
+| `NODE_ENV` | Must be set to `production`. | `production` |
+| `HOST` | Bind host (server defaults to `0.0.0.0`). | `0.0.0.0` |
+| `PORT` | Listening port (Render injects this dynamically, e.g. `10000`). | Set by host |
+
+### Frontend Environment Variables (`client/.env.production` on Vercel):
 | Variable | Description & Requirement |
 |---|---|
-| `DATABASE_URL` | Production PostgreSQL connection string (e.g. `postgresql://user:password@pg-host:5432/dbname?sslmode=require`). |
-| `JWT_SECRET` | Cryptographically random secret (minimum 32 characters, e.g. generated via `openssl rand -hex 32`). Server will refuse to start if omitted. |
-| `ADMIN_PASSWORD` | Strong password used **only on initial setup** if no admin exists. |
-| `CLIENT_URL` | Comma-separated list of allowed frontend origins for CORS (e.g. `https://terminal.yourdomain.com,https://terminal.vercel.app`). |
-| `PORT` | Listening port (defaults to `3001` or provided by host like Railway/Heroku). |
-| `HOST` | Bind host (defaults to `0.0.0.0` for containerized environments). |
-| `NODE_ENV` | Set to `production`. |
-
-### Frontend Environment Variables (`client/.env.production`):
-| Variable | Description & Requirement |
-|---|---|
-| `VITE_API_URL` | Base URL of the backend API (e.g. `https://api.yourdomain.com`). |
-| `VITE_SOCKET_URL` | Base URL of the Socket.IO server (typically same as `VITE_API_URL`). |
+| `VITE_API_URL` | Base URL of the backend API deployed on Render (e.g. `https://terminal-api.onrender.com`). |
+| `VITE_SOCKET_URL` | Base URL of the Socket.IO server (same as `VITE_API_URL`). |
 
 ---
 
@@ -97,30 +123,50 @@ All validation checks were executed in read-only / self-cleaning mode without le
 
 | Verification Target | Command Executed | Result |
 |---|---|---|
-| **Client Production Build** | `npm run build` in `client/` | **PASSED (0 errors, built in 0.92s)** |
-| **Server Production Build** | `npm run build` in `server/` | **PASSED (tsc exit code 0)** |
-| **Production Integrity Suite** | `node test_production_integrity.cjs` | **PASSED (0 lingering artifacts)** |
+| **Client Production Build** | `npm run build` in `client/` | **PASSED (0 errors, Vite v8 built in 1.83s)** |
+| **Monorepo Root Production Build** | `npm run build` in `/` | **PASSED (Prisma generate + tsc exit code 0)** |
+| **Server Production Build** | `npm run build` in `server/` | **PASSED (node scripts/generate-client.js + tsc exit code 0)** |
+| **Render Health Check Endpoint** | `GET /health` & `GET /api/health` | **PASSED (200 OK, { status: "ok" })** |
+| **Authentication Flow & JWT** | `POST /api/auth/login` | **PASSED (Valid token issued, 401 on bad credentials)** |
+| **Socket.IO Handshake Guard** | WSS connection without token | **PASSED (Handshake rejected: "Authentication error")** |
+| **Socket.IO Session Guard** | WSS connection with valid token | **PASSED (Connected & verified)** |
+| **Graceful Shutdown** | `SIGTERM` / `SIGINT` | **PASSED (Clean server close & database disconnect)** |
 | **Database Foreign-Key Integrity** | `node scratch/verify_cleanup_read_only.cjs` | **PASSED (100% normalized, 0 dangling FKs)** |
-| **Pre-Deployment Security Suite** | `node test_pre_deployment_security.cjs` | **36 / 36 PASSED** |
-| **Delayed Review Mode** | `node test_delayed_review_mode.cjs` | **5 / 5 PHASES PASSED** |
-| **Real-Time Leaderboard Sync** | `node test_realtime_leaderboard_sync.cjs` | **10 / 10 PASSED** |
-| **Scoring & Speed Bonus** | `node test_team_average_and_speed_bonus.cjs` | **14 / 14 PASSED** |
-| **GM Auth & Lifecycle** | `node test_gm_auth_regression.cjs` | **25 / 25 PASSED** |
 
 ---
 
 ## 6. Blockers and Pre-Push Actions
 
 ### Current Blockers
-- **None.** The repository and database meet all pre-GitHub release criteria.
+- **None.** The backend build, TypeScript compilation, Prisma client generator, and monorepo workspace orchestration are fully resolved and verified.
 
-### Pre-Deployment Actions for the User:
-1. **Set Production Secrets on Target Host**: When deploying the server to your cloud provider, set unique random values for `JWT_SECRET` and `ADMIN_PASSWORD`.
-2. **Configure Frontend Host**: When deploying the client to Vercel, set `VITE_API_URL` and `VITE_SOCKET_URL` pointing to your deployed backend.
-3. **Execute Git Commit & Push**:
+### Render Build Failure Root Cause & Resolution
+- **Root Cause**: When Render executed `npm install && npm run build --prefix server` in the repository root, `npm install` only installed root dependencies (`@prisma/client`, `axios`, etc.) because root `package.json` had no `workspaces` field. Server dependencies (`express`, `socket.io`, `jsonwebtoken`, `@types/node`, `@types/express`) were never installed, causing `tsc` to fail on missing modules, missing Node globals, and untyped `AuthRequest`.
+- **Resolution**:
+  1. Configured root `package.json` with npm workspaces (`"workspaces": ["server"]`) so root `npm install` automatically installs and links all backend dependencies.
+  2. Moved TypeScript, Prisma CLI, and type declaration packages in `server/package.json` to `dependencies` so production builds never omit them under `NODE_ENV=production`.
+  3. Created `server/scripts/generate-client.js` for deterministic, cross-platform Prisma generation regardless of CWD.
+  4. Configured `server/tsconfig.json` with `"types": ["node"]` for strict Node.js runtime global typing.
+  5. Enhanced `AuthRequest` in `server/src/middleware/auth.ts` and added `server/src/types/express.d.ts` for clean Express request typing.
+
+### Deployment Procedure for Operator:
+1. **Configure Web Service on Render**:
+   - Connect the GitHub repository.
+   - Set **Root Directory** to `.` (or leave blank).
+   - Set **Build Command** to `npm install && npm run build` (or `npm install && npm run build --prefix server`).
+   - Set **Start Command** to `npm run start` (or `npm run start --prefix server`).
+   - Set **Health Check Path** to `/health`.
+2. **Add Environment Variables in Render Dashboard**:
+   - `DATABASE_URL` (Supabase transaction pooler port 6543)
+   - `DIRECT_URL` (Supabase session pooler port 5432)
+   - `JWT_SECRET` (Secure 32+ character random secret)
+   - `CLIENT_URL` (Your production frontend URL)
+   - `NODE_ENV` = `production`
+   - `ADMIN_PASSWORD` = (Your chosen master administrator secret)
+3. **Commit & Push Repository**:
    ```bash
    git add .
-   git commit -m "feat(security): pre-github audit, credential cleanup, and safe test data purge"
+   git commit -m "feat(deploy): prepare server for Render deployment with health checks, graceful shutdown, and prisma auto-build"
    git push origin main
    ```
 
@@ -128,6 +174,6 @@ All validation checks were executed in read-only / self-cleaning mode without le
 
 ## 7. Final Verdict
 
-# **READY TO PUSH**
+# **READY TO DEPLOY**
 
-The TERMINAL codebase and database are secure, verified, normalized, and completely free of automated-test clutter and credential leaks. All gameplay features, official question banks, and retained accounts are 100% operational.
+The TERMINAL backend server is fully configured for Render. All security boundaries, CORS policies, Socket.IO authentication guards, database connection poolers, and health checks are validated and operational.

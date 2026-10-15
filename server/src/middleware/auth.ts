@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import type { ParamsDictionary, Query } from 'express-serve-static-core';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -12,7 +13,13 @@ const JWT_SECRET: string = process.env.JWT_SECRET || (() => {
   throw new Error('[SECURITY] JWT_SECRET environment variable is not set. Refusing to start.');
 })();
 
-export interface AuthRequest extends Request {
+export interface AuthRequest<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = Query,
+  Locals extends Record<string, any> = Record<string, any>
+> extends Request<P, ResBody, ReqBody, ReqQuery, Locals> {
   userId?: string;
   userEmail?: string;
 }

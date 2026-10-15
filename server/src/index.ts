@@ -19,6 +19,7 @@ import collabRoutes from './routes/collab';
 import { setupSocketHandlers } from './sockets';
 import { errorHandler } from './middleware/errorHandler';
 import { ensureAdminUser } from './lib/adminInit';
+import { prisma } from './lib/prisma';
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ const httpServer = createServer(app);
 
 const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 const allowedOrigins = rawClientUrl.split(',').map((s) => s.trim());
+const isProd = process.env.NODE_ENV === 'production';
 
 const corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
   if (!origin) return callback(null, true);
@@ -39,11 +41,13 @@ const corsOrigin = (origin: string | undefined, callback: (err: Error | null, al
   if (allowedOrigins.some((o) => o.includes('netlify.app')) && origin.endsWith('.netlify.app')) {
     return callback(null, true);
   }
-  if (origin.endsWith('.devtunnels.ms') || origin.endsWith('.app.github.dev')) {
-    return callback(null, true);
-  }
-  if (origin.endsWith('.trycloudflare.com') || origin.endsWith('.ngrok-free.app') || origin.endsWith('.ngrok.app')) {
-    return callback(null, true);
+  if (!isProd) {
+    if (origin.endsWith('.devtunnels.ms') || origin.endsWith('.app.github.dev')) {
+      return callback(null, true);
+    }
+    if (origin.endsWith('.trycloudflare.com') || origin.endsWith('.ngrok-free.app') || origin.endsWith('.ngrok.app')) {
+      return callback(null, true);
+    }
   }
   return callback(null, false);
 };
@@ -121,8 +125,8 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/collab', collabRoutes);
 
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get(['/health', '/api/health'], (_req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // ── Socket handlers ───────────────────────────────────────────────────────────
@@ -133,11 +137,39 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
-httpServer.listen(Number(PORT), HOST, async () => {
+const serverInstance = httpServer.listen(Number(PORT), HOST, async () => {
   console.log(`\n🚀 TERMINAL server running on http://${HOST}:${PORT}`);
   console.log(`📡 Socket.IO ready`);
   console.log(`🌐 CORS origins: ${rawClientUrl}\n`);
   await ensureAdminUser();
+});
+
+// ── Graceful Shutdown ────────────────────────────────────────────────────────
+const handleShutdown = async (signal: string) => {
+  console.log(`\n🛑 [Server] Received ${signal}. Initiating graceful shutdown...`);
+  serverInstance.close(async () => {
+    console.log('🔌 [Server] HTTP server closed.');
+    try {
+      await prisma.$disconnect();
+      console.log('🗄️ [Server] Database client disconnected cleanly.');
+    } catch (err) {
+      console.error('❌ [Server] Error disconnecting database client:', err);
+    }
+    process.exit(0);
+  });
+
+  // Force exit after 10s if graceful drain times out
+  setTimeout(() => {
+    console.error('⚠️ [Server] Graceful shutdown timed out. Forcing process exit.');
+    process.exit(1);
+  }, 10000).unref();
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+
+process.on('unhandledRejection', (reason) => {
+  console.error('🚨 [Server] Unhandled Promise Rejection:', reason);
 });
 
 export { io };

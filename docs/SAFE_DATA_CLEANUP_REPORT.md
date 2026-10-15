@@ -132,6 +132,39 @@ All automated test suites were executed against the cleaned database:
 
 ---
 
-## 7. Conclusion
+## 7. Local Cleanup Conclusion
 
-The TERMINAL database is completely free of all automated test data, verified against foreign-key integrity constraints, and ready for deployment.
+The local TERMINAL development database is verified and completely free of automated test data, retaining only foundational and production assets.
+
+---
+
+## 8. Supabase Production Data Transfer & Verification
+
+**Transfer Execution Date:** 2026-10-15  
+**Target Environment:** Supabase Cloud PostgreSQL (`dltkqhelvaulqhtpkusw` via `aws-0-ap-south-1.pooler.supabase.com`)  
+**Transfer Strategy:** Transactional, Scoped ETL (zero full database dumps, zero test pollution, strict foreign-key order)
+
+### Pre-Transfer Backups Created & Verified
+- **Local Source Binary Snapshot:** `backups/terminal_local_source_2026-10-15T06-45-03-082Z.dump` (303,782 bytes, `-F c`, TOC verified with `pg_restore -l`)
+- **Supabase Target Schema Snapshot:** `backups/supabase_target_schema_2026-10-15T06-45-03-082Z.sql` (344,562 bytes)
+
+### Actual Records Transferred
+
+| Target Model | Transferred Count | Scope & Details | Verification Status |
+|---|---|---|---|
+| **`users`** | **10** | Retained core accounts (`root`, `shraddha`, `soumyabasantia24aiml`, `bob`, `codenex`, `demo_designer`, `demo`, `hero`, `soumya`, `rohan`) with exact IDs, roles, approval statuses, and bcrypt password hashes. | **CONFIRMED 10/10** |
+| **`profiles`** | **8** | Exact matching profiles for accounts with profiles. | **CONFIRMED 8/8** |
+| **`clubs`** | **1** | Official campus club `CODENEX` (`cmusf1f740003k2ss0e1ayqcw`). | **CONFIRMED 1/1** |
+| **`club_members`** | **1** | Administrative membership linking `CODENEX` to user `codenex` (`ADMIN`). | **CONFIRMED 1/1** |
+| **`games`** | **2** | Official tournament games: "PYTHON LOGIC TRAPS: The First-Year Challenge" (`cmv7qd0vi000112c6dp72b1hj`) and "PYTHON RAPID FIRE — CODE TRAP ZONE" (`cmv7sljxr0001voi307i59znc`). | **CONFIRMED 2/2** |
+| **`challenges`** | **30** | 20 questions for Logic Traps + 10 questions for Rapid Fire with prompts, options, explanations, and timers. | **CONFIRMED 30/30** |
+| **`system_settings`** | **1** | Global `student_registration_enabled = true`. | **CONFIRMED 1/1** |
+| **Ephemeral Test Records** | **0** | Sessions, session players, submissions, and audit logs were excluded. | **CONFIRMED 0 TEST ARTIFACTS** |
+| **TOTAL TRANSFERRED** | **53** | Transferred atomically in a single interactive transaction. | **100% COMMITTED** |
+
+### Post-Transfer Security & Authentication Verification
+- **Account Identity & Role Check:** 10/10 users verified in Supabase with matching roles and statuses.
+- **Foreign-Key Hierarchy:** All challenges link to games; games link to designer (`codenex`) and club (`CODENEX`); profiles link to users.
+- **Production Authentication:** Verified via bcrypt comparison against `demo@terminal.dev` and JWT generation with production secret.
+- **Clean Room Verification:** Verified 0 test accounts (`pw_*`, `sq_*`, `rt_*`, etc.) and 0 ephemeral sessions in Supabase.
+
