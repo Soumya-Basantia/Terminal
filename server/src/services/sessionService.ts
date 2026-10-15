@@ -34,6 +34,7 @@ export interface SessionStatePayload {
     id: string;
     name: string;
     template: string;
+    maxPlayers?: number;
     teamsEnabled: boolean;
     leaderboardVisibility: string;
     speedBonus: boolean;
@@ -42,6 +43,7 @@ export interface SessionStatePayload {
     id: string;
     name: string;
     template: string;
+    maxPlayers?: number;
     challenges?: any[];
   } | null;
   currentChallenge?: any;
@@ -904,6 +906,7 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
       id: session.currentGame.id,
       name: snapshot?.gameName || session.currentGame.name,
       template: session.currentGame.template,
+      maxPlayers: Number(snapshot?.maxPlayers ?? session.currentGame.maxPlayers ?? 200),
       teamsEnabled: snapshot ? Boolean(snapshot.teamsEnabled) : session.currentGame.teamsEnabled,
       leaderboardVisibility: session.currentGame.leaderboardVisibility,
       speedBonus: session.currentGame.speedBonus,
@@ -911,6 +914,7 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
       id: '',
       name: session.event.name,
       template: 'QUIZ',
+      maxPlayers: 200,
       teamsEnabled: false,
       leaderboardVisibility: 'LIVE',
       speedBonus: false,
@@ -919,6 +923,7 @@ export async function getSessionState(roomCode: string): Promise<SessionStatePay
       id: session.currentGame.id,
       name: snapshot?.gameName || session.currentGame.name,
       template: session.currentGame.template,
+      maxPlayers: Number(snapshot?.maxPlayers ?? session.currentGame.maxPlayers ?? 200),
       challenges: sanitizedChallenges,
     } : null,
     currentChallenge,

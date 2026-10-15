@@ -135,6 +135,17 @@ export function QuestionSpotlight({
               <span className="w-2.5 h-2.5 rounded-full bg-[#3fb950] animate-pulse" />
               <span>{totalParticipants} PARTICIPANTS ENROLLED • {totalTeams} TEAMS READY</span>
             </div>
+            {onStartGame && (
+              <button
+                type="button"
+                onClick={onStartGame}
+                disabled={actionBusy === 'start'}
+                className="mt-6 px-8 py-3.5 bg-[#00ffcc] text-black font-black uppercase text-sm sm:text-base tracking-[0.15em] border-2 border-black shadow-[4px_4px_0_0_#000] hover:bg-white hover:shadow-[2px_2px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] active:translate-x-[4px] active:translate-y-[4px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 transition-all cursor-pointer"
+              >
+                <Play size={18} fill="currentColor" />
+                <span>{actionBusy === 'start' ? 'LAUNCHING...' : 'LAUNCH GAME'}</span>
+              </button>
+            )}
           </motion.div>
         ) : (isEnded || isResults) && targetReviewChallenge ? (
           /* DEDICATED REVIEW PRESENTATION (RESERVED STAGE WITH LOCKED OR REVEALED PREVIEW) */

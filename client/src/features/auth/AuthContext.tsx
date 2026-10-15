@@ -21,28 +21,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const clearAuthStorage = useCallback(() => {
+    try {
+      sessionStorage.removeItem('terminal_token');
+      sessionStorage.removeItem('terminal_user');
+      sessionStorage.removeItem('terminal_player');
+      sessionStorage.removeItem('token');
+      sessionStorage.clear();
+    } catch {}
+    try {
+      localStorage.removeItem('terminal_token');
+      localStorage.removeItem('terminal_user');
+      localStorage.removeItem('terminal_player');
+      localStorage.removeItem('token');
+    } catch {}
+  }, []);
+
   useEffect(() => {
     let storedToken: string | null = null;
-    let storedUser: string | null = null;
     try {
-      storedToken = sessionStorage.getItem('terminal_token') || localStorage.getItem('terminal_token');
-      storedUser = sessionStorage.getItem('terminal_user') || localStorage.getItem('terminal_user');
+      storedToken = localStorage.getItem('terminal_token');
     } catch {}
 
     if (!storedToken) {
+      setUser(null);
+      setToken(null);
+      clearAuthStorage();
       setIsLoading(false);
       return;
     }
 
-    // Set optimistic token for outgoing requests
+    // Set token for api request authorization header, but keep user null until server verification
     setToken(storedToken);
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch {}
-    }
 
-    // Verify token validity with server (/api/auth/me) to prevent stale authentication
+    // Authoritative server-side verification (/api/auth/me).
+    // Stored user JSON alone must NEVER establish authentication.
     api.get('/auth/me', { headers: { Authorization: `Bearer ${storedToken}` } })
       .then((res) => {
         const verifiedUser = res.data?.user;
@@ -52,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             sessionStorage.setItem('terminal_token', storedToken!);
             sessionStorage.setItem('terminal_user', JSON.stringify(verifiedUser));
+            localStorage.setItem('terminal_token', storedToken!);
             localStorage.setItem('terminal_user', JSON.stringify(verifiedUser));
           } catch {}
         } else {
@@ -59,24 +73,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(() => {
-        // Stale or revoked credentials — clear auth state cleanly
+        // Stale, malformed, expired, or revoked credentials — purge all storage keys
         setUser(null);
         setToken(null);
-        try {
-          sessionStorage.removeItem('terminal_token');
-          sessionStorage.removeItem('terminal_user');
-          sessionStorage.removeItem('terminal_player');
-          sessionStorage.removeItem('token');
-        } catch {}
-        localStorage.removeItem('terminal_token');
-        localStorage.removeItem('terminal_user');
-        localStorage.removeItem('terminal_player');
-        localStorage.removeItem('token');
+        clearAuthStorage();
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, []);
+
+    // Multi-tab synchronization: respond to logout or token replacement in other tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'terminal_token') {
+        if (!e.newValue) {
+          // Logged out in another tab
+          setUser(null);
+          setToken(null);
+          clearAuthStorage();
+          try {
+            disconnectSocket();
+          } catch {}
+          setIsLoading(false);
+        } else if (e.newValue !== storedToken) {
+          // Logged in with different token in another tab: re-verify
+          const updatedToken = e.newValue;
+          api.get('/auth/me', { headers: { Authorization: `Bearer ${updatedToken}` } })
+            .then((res) => {
+              if (res.data?.user) {
+                setUser(res.data.user);
+                setToken(updatedToken);
+              }
+            })
+            .catch(() => {
+              setUser(null);
+              setToken(null);
+              clearAuthStorage();
+            });
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [clearAuthStorage]);
 
   /**
    * Send { login, password } to the backend.
@@ -117,19 +158,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
     setUser(null);
     setToken(null);
-    try {
-      sessionStorage.removeItem('terminal_token');
-      sessionStorage.removeItem('terminal_user');
-      sessionStorage.removeItem('terminal_player');
-      sessionStorage.removeItem('token');
-      sessionStorage.clear();
-    } catch {}
-    localStorage.removeItem('terminal_token');
-    localStorage.removeItem('terminal_user');
-    localStorage.removeItem('terminal_player');
-    localStorage.removeItem('token');
+    clearAuthStorage();
     window.location.href = '/login';
-  }, []);
+  }, [clearAuthStorage]);
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout, updateUser, isLoading }}>

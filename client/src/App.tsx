@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './features/auth/AuthContext';
 import api from './lib/api';
@@ -31,16 +31,46 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles?: string[];
+  redirectTo?: string;
+}
+
+function ProtectedRoute({ children, allowedRoles, redirectTo }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
+
   if (isLoading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: 'var(--text-secondary)' }}>Loading...</div>
+      <div className="min-h-screen bg-[#050608] flex items-center justify-center font-mono select-none">
+        <div className="flex flex-col items-center gap-4 p-6 border border-[#2d3848] bg-[#0c1017] shadow-[6px_6px_0px_#000] max-w-sm w-full">
+          <div className="w-10 h-10 border-2 border-[#00ffcc] border-t-transparent animate-spin" style={{ borderRadius: 0 }} />
+          <div className="text-[#00ffcc] text-xs font-black tracking-[0.25em] uppercase">
+            // AUTHENTICATING SESSION
+          </div>
+          <div className="text-[#5e6b7c] text-[10px] tracking-widest text-center uppercase">
+            VALIDATING CRYPTOGRAPHIC IDENTITY WITH SERVER
+          </div>
+        </div>
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+    const fallbackPath =
+      user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
+        ? '/admin'
+        : user.role === 'GAME_MASTER'
+        ? '/gm'
+        : '/terminal';
+    return <Navigate to={redirectTo || fallbackPath} replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -179,14 +209,26 @@ function AppRoutes() {
       <Route path="/admin/login" element={<Navigate to="/login" replace />} />
 
       {/* Admin Protected Routes */}
-      <Route path="/admin" element={<AdminPage />} />
+      <Route path="/admin" element={
+        <ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']}>
+          <AdminPage />
+        </ProtectedRoute>
+      } />
 
       {/* Game Master Protected Workspace */}
-      <Route path="/gm" element={<ProtectedRoute><GameMasterWorkspacePage /></ProtectedRoute>} />
+      <Route path="/gm" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <GameMasterWorkspacePage />
+        </ProtectedRoute>
+      } />
       <Route path="/workspace/gm" element={<Navigate to="/gm" replace />} />
 
       {/* Student Protected Terminal Workspace */}
-      <Route path="/terminal" element={<ProtectedRoute><TerminalPage /></ProtectedRoute>} />
+      <Route path="/terminal" element={
+        <ProtectedRoute allowedRoles={['PLAYER', 'ADMIN', 'SUPER_ADMIN']}>
+          <TerminalPage />
+        </ProtectedRoute>
+      } />
       <Route path="/workspace/student" element={<Navigate to="/terminal" replace />} />
       
       {/* Root redirects to dashboard/clubs */}
@@ -194,35 +236,83 @@ function AppRoutes() {
       <Route path="/games" element={<Navigate to="/clubs" replace />} />
       <Route path="/events" element={<Navigate to="/clubs" replace />} />
 
-      {/* Club Context Routes */}
-      <Route path="/clubs" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/clubs/:clubId" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+      {/* Club Context Routes (Game Master & Admin) */}
+      <Route path="/clubs" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <DashboardPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/clubs/:clubId" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <DashboardPage />
+        </ProtectedRoute>
+      } />
       
-      <Route path="/clubs/:clubId/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
-      <Route path="/clubs/:clubId/events/:id/edit" element={<ProtectedRoute><EventEditorPage /></ProtectedRoute>} />
+      <Route path="/clubs/:clubId/events" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <EventsPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/clubs/:clubId/events/:id/edit" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <EventEditorPage />
+        </ProtectedRoute>
+      } />
       
       <Route path="/clubs/:clubId/games" element={<Navigate to="/clubs/:clubId" replace />} />
-      <Route path="/clubs/:clubId/games/new" element={<ProtectedRoute><NewGamePage /></ProtectedRoute>} />
-      <Route path="/clubs/:clubId/games/:id/edit" element={<ProtectedRoute><GameEditorPage /></ProtectedRoute>} />
-      <Route path="/clubs/:clubId/games/:id/host" element={<ProtectedRoute><HostGameRedirect /></ProtectedRoute>} />
-      <Route path="/clubs/:clubId/sessions/:sessionCode/host" element={<ProtectedRoute><SessionHostPage /></ProtectedRoute>} />
+      <Route path="/clubs/:clubId/games/new" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <NewGamePage />
+        </ProtectedRoute>
+      } />
+      <Route path="/clubs/:clubId/games/:id/edit" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <GameEditorPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/clubs/:clubId/games/:id/host" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <HostGameRedirect />
+        </ProtectedRoute>
+      } />
+      <Route path="/clubs/:clubId/sessions/:sessionCode/host" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <SessionHostPage />
+        </ProtectedRoute>
+      } />
 
-      {/* Legacy fallback - some might still use these temporarily */}
-      <Route path="/games/new" element={<ProtectedRoute><NewGamePage /></ProtectedRoute>} />
-      <Route path="/games/:id/edit" element={<ProtectedRoute><GameEditorPage /></ProtectedRoute>} />
-      <Route path="/events/:id/edit" element={<ProtectedRoute><EventEditorPage /></ProtectedRoute>} />
+      {/* Legacy fallback - GM & Admin only */}
+      <Route path="/games/new" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <NewGamePage />
+        </ProtectedRoute>
+      } />
+      <Route path="/games/:id/edit" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <GameEditorPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/events/:id/edit" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <EventEditorPage />
+        </ProtectedRoute>
+      } />
 
       {/* Host control room (require auth) */}
-      <Route path="/sessions/:sessionCode/host" element={<ProtectedRoute><SessionHostPage /></ProtectedRoute>} />
+      <Route path="/sessions/:sessionCode/host" element={
+        <ProtectedRoute allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}>
+          <SessionHostPage />
+        </ProtectedRoute>
+      } />
 
-      {/* Player routes — no auth required */}
+      {/* Player routes — session participation */}
       <Route path="/join" element={<JoinPage />} />
       <Route path="/join/:sessionCode" element={<JoinPage />} />
       <Route path="/lobby/:sessionCode" element={<LobbyPage />} />
       <Route path="/play/:sessionCode" element={<PlayPage />} />
       <Route path="/results/:sessionCode" element={<ResultsPage />} />
 
-      {/* Presenter view — no auth, typically opened on projector */}
+      {/* Presenter view — typically opened on stage/projector */}
       <Route path="/presenter/:sessionCode" element={<PresenterPage />} />
       <Route path="/stage/:sessionCode" element={<StagePage />} />
 

@@ -180,6 +180,7 @@ export function freezeGameSnapshot(game: any): { snapshot: any; snapshotVersion:
     speedBonus: Boolean(game.speedBonus),
     allowLateJoin: Boolean(game.allowLateJoin),
     leaderboardVisibility: game.leaderboardVisibility || 'LIVE',
+    maxPlayers: Number(game.maxPlayers) || 200,
     config: game.config ?? {},
     challenges,
   };

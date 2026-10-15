@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import { 
   Eye, 
@@ -26,15 +26,41 @@ type PageMode = 'login' | 'register';
 type RegisterType = 'student' | 'gm';
 
 export default function LoginPage() {
-  const { user, login } = useAuth();
+  const { user, login, isLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromPath = (location.state as any)?.from?.pathname;
 
   const [mode, setMode] = useState<PageMode>('login');
   const [registerType, setRegisterType] = useState<RegisterType>('student');
 
-  // If already authenticated, redirect to appropriate role workspace
+  // If already authenticated and verified by server, redirect to appropriate role workspace
   React.useEffect(() => {
-    if (user) {
+    if (!isLoading && user) {
+      // Determine if fromPath is a safe internal path
+      const isSafeFromPath =
+        typeof fromPath === 'string' &&
+        fromPath.startsWith('/') &&
+        !fromPath.startsWith('//') &&
+        fromPath !== '/login' &&
+        fromPath !== '/register';
+
+      if (isSafeFromPath) {
+        const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
+        const isPlayer = user.role === 'PLAYER';
+
+        if (fromPath.startsWith('/admin') && !isAdmin) {
+          navigate(user.role === 'GAME_MASTER' ? '/gm' : '/terminal', { replace: true });
+          return;
+        }
+        if ((fromPath.startsWith('/gm') || fromPath.startsWith('/clubs')) && isPlayer) {
+          navigate('/terminal', { replace: true });
+          return;
+        }
+        navigate(fromPath, { replace: true });
+        return;
+      }
+
       if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
         navigate('/admin', { replace: true });
       } else if (user.role === 'GAME_MASTER') {
@@ -43,7 +69,7 @@ export default function LoginPage() {
         navigate('/terminal', { replace: true });
       }
     }
-  }, [user, navigate]);
+  }, [user, isLoading, navigate, fromPath]);
 
   // ── Login state ────────────────────────────────────────────────────────────
   const [loginIdentifier, setLoginIdentifier] = useState('');

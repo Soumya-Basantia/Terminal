@@ -170,9 +170,22 @@ export function setupSocketHandlers(io: Server): void {
 
         if (!sessionPlayer && userId) {
           const session = await prisma.session.findUnique({
-            where: { roomCode: code }
+            where: { roomCode: code },
+            include: { currentGame: true }
           });
           if (session && session.status !== 'ENDED') {
+            const sessSnapshot: any = (session as any).snapshot || null;
+            const maxCapacity = Number(sessSnapshot?.maxPlayers ?? session.currentGame?.maxPlayers ?? 200);
+            const currentCount = await prisma.sessionPlayer.count({
+              where: {
+                sessionId: session.id,
+                status: { in: ['ACTIVE', 'DISCONNECTED'] }
+              }
+            });
+            if (currentCount >= maxCapacity) {
+              socket.emit('error', { message: `Session capacity reached (${maxCapacity} players maximum). This room is full.` });
+              return;
+            }
             try {
               sessionPlayer = await prisma.sessionPlayer.upsert({
                 where: {

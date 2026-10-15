@@ -570,6 +570,11 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise
     return;
   }
 
+  if (user.accountStatus === 'BLOCKED' || user.accountStatus === 'SUSPENDED') {
+    res.status(403).json({ error: `Account is ${user.accountStatus.toLowerCase()}. Please contact Administrator.` });
+    return;
+  }
+
   res.json({ user });
 });
 

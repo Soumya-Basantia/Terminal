@@ -34,6 +34,7 @@ server_err.log
 
 # Playtest & temporary session dumps
 *session.json
+*.xlsx
 
 # IDE & OS files
 .DS_Store

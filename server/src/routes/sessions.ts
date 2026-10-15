@@ -237,6 +237,33 @@ router.post('/join', authenticate, async (req: AuthRequest, res: Response): Prom
 
   // Authoritative teams mode check: read from snapshot if available, or session.currentGame
   const snapshot: any = (session as any).snapshot || null;
+
+  if (!alreadyMember) {
+    const maxCapacity = Number(
+      snapshot?.maxPlayers ??
+      (session.currentGameId
+        ? (await prisma.game.findUnique({ where: { id: session.currentGameId }, select: { maxPlayers: true } }))?.maxPlayers
+        : null) ??
+      200
+    );
+
+    const currentActiveCount = await prisma.sessionPlayer.count({
+      where: {
+        sessionId: session.id,
+        status: { in: ['ACTIVE', 'DISCONNECTED'] }
+      }
+    });
+
+    if (currentActiveCount >= maxCapacity) {
+      res.status(403).json({
+        error: `Session capacity reached (${maxCapacity} players maximum). This room is full.`,
+        code: 'CAPACITY_REACHED',
+        maxPlayers: maxCapacity
+      });
+      return;
+    }
+  }
+
   let isTeamsMode = snapshot?.teamsEnabled !== undefined
     ? Boolean(snapshot.teamsEnabled)
     : false;
@@ -299,6 +326,7 @@ router.get('/:roomCode/host', authenticate, async (req: AuthRequest, res: Respon
     // `sessionData.event.games` (EVENT_FLOW panel), so the host load must
     // carry the same shape as the socket `session_state_update` payload.
     include: {
+      currentGame: true,
       event: {
         include: {
           games: {
@@ -352,6 +380,7 @@ router.get('/:roomCode/host', authenticate, async (req: AuthRequest, res: Respon
           id: snapshot.gameId,
           name: snapshot.gameName,
           template: snapshot.template,
+          maxPlayers: Number(snapshot.maxPlayers ?? session.currentGame?.maxPlayers ?? 200),
           teamsEnabled: snapshot.teamsEnabled,
           maxTeamSize: snapshot.maxTeamSize,
           speedBonus: snapshot.speedBonus,
@@ -369,7 +398,7 @@ router.get('/:roomCode/host', authenticate, async (req: AuthRequest, res: Respon
             return { ...safe, config };
           }),
         }
-      : (state?.game || null),
+      : (state?.game ? { ...state.game, maxPlayers: Number(session.currentGame?.maxPlayers ?? 200) } : null),
     questionTiming: timing,
     canControl: true,
     gmHandle: `${(await prisma.user.findUnique({ where: { id: session.gmId || session.event.creatorId } }))?.username || 'GM'}@terminal`,
@@ -1796,7 +1825,7 @@ router.post('/:code/start', authenticate, async (req: AuthRequest, res: Response
   const code = (req.params.code as string).toUpperCase();
   const session = await prisma.session.findUnique({
     where: { roomCode: code },
-    include: { currentGame: true, event: true }
+    include: { currentGame: { include: { challenges: true } }, event: true }
   });
 
   if (!session) {
@@ -1816,9 +1845,19 @@ router.post('/:code/start', authenticate, async (req: AuthRequest, res: Response
   // LOBBY → STARTING announces the game; STARTING → QUESTION_ACTIVE begins it.
   let updated: any = null;
   if (session.status === 'STARTING') {
-    const firstChallengeId = ((session as any).snapshot as any)?.challenges?.[0]?.id
+    let firstChallengeId = ((session as any).snapshot as any)?.challenges?.[0]?.id
       || (session.currentGame as any)?.challenges?.[0]?.id
       || null;
+
+    if (!firstChallengeId && session.currentGameId) {
+      const firstCh = await prisma.challenge.findFirst({
+        where: { gameId: session.currentGameId },
+        orderBy: { position: 'asc' },
+        select: { id: true }
+      });
+      firstChallengeId = firstCh?.id || null;
+    }
+
     if (!firstChallengeId) {
       res.status(400).json({ error: 'No questions available to start' });
       return;

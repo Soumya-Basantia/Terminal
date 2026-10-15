@@ -17,10 +17,51 @@ All confirmed vulnerabilities were remediated with targeted, surgical fixes that
 
 ---
 
-## 2. Root Cause Analysis: Login Unexpected Credentials
+## 2. Root Cause Analysis: Login Unexpected Credentials & Startup Bypass
 
-### Symptoms
+### Issue A: Login Credentials Persistence
 When opening `/login`, the login credentials appeared to automatically populate or retain credentials from older sessions.
+
+### Issue B: Critical Startup Authentication Bypass
+When visitors opened the root URL `/` or accessed protected routes directly, the application would skip the login page and render protected student or GM interfaces, even without valid server verification.
+
+### Root Cause of Startup Login Bypass
+1. **Optimistic LocalStorage User Hydration (`AuthContext.tsx`)**:
+   - On initial mount, `AuthContext.tsx` synchronously read `localStorage.getItem('terminal_user')` and invoked `setUser(JSON.parse(storedUser))` *before* sending `/api/auth/me`.
+   - Although `isLoading` was initialized to `true`, setting `user` to a non-null object caused `LoginPage.tsx`'s redirect effect to trigger immediately (`navigate('/terminal')` or `/gm`), bypassing the login page before backend verification could complete or reject the session.
+2. **Unshielded Admin Route (`App.tsx`)**:
+   - The route `<Route path="/admin" element={<AdminPage />} />` was completely unprotected by `<ProtectedRoute>`.
+   - In addition, `<ProtectedRoute>` only evaluated `if (!user)` without role checking, allowing any authenticated player to load GM and administrative routes.
+3. **Fail-Open Error Handling in Protected Workspaces (`TerminalPage.tsx`)**:
+   - In `TerminalPage.tsx`, when `/api/workspace/student` failed with HTTP 401 or 403, the page logged to the console and proceeded to render the terminal shell rather than forcing a logout and redirect.
+4. **Client-Side Storage Desynchronization (`AdminPage.tsx`)**:
+   - `AdminPage.tsx` directly read from `localStorage.getItem('terminal_user')` in a client `useEffect` rather than consuming server-verified identity from `useAuth()`.
+
+---
+
+## 2.1 Remediation Architecture
+
+### 1. Reliable Authentication State Machine
+Established a strict state machine:
+`INITIALIZING (isLoading: true, user: null) → UNAUTHENTICATED (isLoading: false, user: null) | AUTHENTICATED (isLoading: false, user: User, token: string)`
+- While `isLoading`: `<ProtectedRoute>` renders a cyber-styled terminal session authentication screen (`// AUTHENTICATING SESSION`). Protected application content is NEVER rendered or flashed.
+- When unauthenticated: user is redirected to `/login`, preserving their target internal path in `location.state.from`.
+- When authenticated: session is established ONLY after `GET /api/auth/me` returns `200 OK` with the authoritative user record. A cached user object alone can never establish authentication.
+
+### 2. Role-Based Route Protection (`App.tsx`)
+Updated `<ProtectedRoute>` to accept `allowedRoles?: string[]` and `redirectTo?: string`:
+- `/admin` is guarded with `allowedRoles={['ADMIN', 'SUPER_ADMIN']}`.
+- `/gm`, `/workspace/gm`, and all game/event creation/hosting routes are guarded with `allowedRoles={['GAME_MASTER', 'ADMIN', 'SUPER_ADMIN']}`.
+- `/terminal` is guarded with `allowedRoles={['PLAYER', 'ADMIN', 'SUPER_ADMIN']}`.
+- Authenticated visitors who lack authorization for a given workspace are safely redirected to their role-authorized home rather than exposing unauthorized controls.
+
+### 3. Multi-Tab Session Synchronization
+- Implemented `window.addEventListener('storage', ...)` in `AuthContext.tsx`.
+- When an account logs out in one tab (clearing `terminal_token`), all other open tabs immediately receive the event, clear local session storage, disconnect sockets, and return to `/login`.
+- Single authoritative source of truth for the session token prevents stale tabs from restoring conflicting sessions.
+
+### 4. Account Status & Server-Side Invalidation (`server/src/routes/auth.ts`)
+- Updated `GET /api/auth/me` to explicitly inspect `user.accountStatus`. If the account is marked `BLOCKED` or `SUSPENDED`, the server returns `403 Forbidden`, instantly clearing cached tokens on the client and preventing further access.
 
 ### Thorough Investigation Across Layers
 1. **Frontend Components & State Initialization (`LoginPage.tsx`)**:
@@ -142,7 +183,21 @@ When opening `/login`, the login credentials appeared to automatically populate 
 
 All tests were executed against the live application server and PostgreSQL database:
 
-1. **Security Verification Test Suite (`test_pre_deployment_security.cjs`)**:
+1. **Authentication Bypass & Route Authorization Suite (`scratch/test_auth_regression.cjs`)**:
+   - **Result**: **30 PASSED / 0 FAILED**
+   - Verified:
+     - Fresh browser context opening root `/` redirects to `/login` with login form visible.
+     - Direct unauthenticated visits to `/terminal`, `/gm`, `/admin`, `/clubs` redirect to `/login`.
+     - Fake / malformed tokens are rejected, purged from local storage, and redirect to `/login`.
+     - Role escalation attempts in storage cannot open `/admin`.
+     - Student cannot access `/admin` or `/gm` (frontend redirect to `/terminal` and backend HTTP 403 Forbidden).
+     - Game Master cannot access `/admin` (frontend redirect to `/gm` and backend HTTP 403 Forbidden).
+     - Session host controls strictly require authorized ownership (unauthorized student returns HTTP 403, unauthenticated request returns HTTP 401).
+     - Administrator credentials grant access to `/admin` and `/api/admin/stats`.
+     - Logout completely purges tokens and prevents back-button or direct URL navigation from viewing protected workspaces.
+     - Multi-tab storage synchronization: logging out in Tab A instantly clears credentials in Tab B.
+
+2. **Security Verification Test Suite (`test_pre_deployment_security.cjs`)**:
    - **Result**: **36 PASSED / 0 FAILED**
    - Verified: Empty login inputs, stale token cleansing on mount, unauthenticated 401 rejections, student GM control blocking (403), GM session isolation (403), question answer key anti-leakage, seed script idempotency without credential overwrite, and rate limiting (429 Too Many Requests).
 2. **Solo Mode End-to-End Playwright Test (`test_playwright_full_game.cjs`)**:

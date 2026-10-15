@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../features/auth/AuthContext';
 import { disconnectSocket } from '../lib/socket';
 import { TerminalBackButton } from '../components/ui/TerminalBackButton';
 import { 
@@ -54,6 +55,7 @@ interface AdminStats {
 type AdminTab = 'USERS' | 'CONTENT' | 'MESSAGING' | 'REPORTS' | 'AUDIT_LOGS' | 'SYSTEM_CONTROLS';
 
 export default function AdminPage() {
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AdminTab>('USERS');
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -147,23 +149,12 @@ export default function AdminPage() {
     participation: true,
   });
 
-  // Check admin session
+  // Verify administrator role from validated session
   useEffect(() => {
-    const rawUser = localStorage.getItem('terminal_user');
-    const token = localStorage.getItem('terminal_token');
-    if (!token || !rawUser) {
-      navigate('/login');
-      return;
+    if (user && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+      navigate('/login', { replace: true });
     }
-    try {
-      const user = JSON.parse(rawUser);
-      if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
-        navigate('/login');
-      }
-    } catch {
-      navigate('/login');
-    }
-  }, [navigate]);
+  }, [user, navigate]);
 
   // Load stats
   const fetchStats = useCallback(async () => {
@@ -531,17 +522,7 @@ export default function AdminPage() {
   }
 
   function handleLogout() {
-    try {
-      disconnectSocket();
-    } catch {}
-    localStorage.removeItem('terminal_token');
-    localStorage.removeItem('terminal_user');
-    localStorage.removeItem('terminal_player');
-    localStorage.removeItem('token');
-    try {
-      sessionStorage.clear();
-    } catch {}
-    navigate('/login');
+    logout();
   }
 
   return (

@@ -269,11 +269,6 @@ export default function SessionHostPage() {
 
     void loadHost();
 
-    // Initial state refresh via public endpoint
-    api.get(`/sessions/${code}`).then(res => {
-      if (!cancelled) setSessionData(res.data);
-    }).catch(() => {});
-
     return () => {
       cancelled = true;
       socket.off('connect', onConnect);
@@ -300,18 +295,32 @@ export default function SessionHostPage() {
             } : prev);
           }
         }).catch(() => {});
-        api.get(`/sessions/${code}`).then((res: any) => setSessionData(res.data)).catch(() => {});
         api.get(`/sessions/${code}/host`).then((res: any) => {
-          setSessionData((prev: any) => prev ? { ...prev, session: { ...prev.session, ...res.data.session } } : res.data);
-        }).catch(() => {});
+          setSessionData((prev: any) => prev ? { ...prev, ...res.data, session: { ...prev.session, ...res.data.session } } : res.data);
+        }).catch(() => {
+          api.get(`/sessions/${code}`).then((res: any) => {
+            setSessionData((prev: any) => prev ? { ...prev, ...res.data, session: { ...prev.session, ...res.data.session } } : res.data);
+          }).catch(() => {});
+        });
       } else {
         hadSocketRef.current = true;
       }
     }
   }, [connected, code]);
 
-  const refreshState = () => {
-    api.get(`/sessions/${code}`).then((res: any) => setSessionData(res.data)).catch(() => {});
+  const refreshState = async () => {
+    try {
+      const res = await api.get(`/sessions/${code}/host`);
+      setSessionData((prev: any) => prev
+        ? { ...prev, ...res.data, session: { ...prev.session, ...res.data.session } }
+        : res.data);
+    } catch {
+      api.get(`/sessions/${code}`).then((res: any) => {
+        setSessionData((prev: any) => prev
+          ? { ...prev, ...res.data, session: { ...prev.session, ...res.data.session } }
+          : res.data);
+      }).catch(() => {});
+    }
   };
 
   const copyCode = () => {
@@ -619,7 +628,7 @@ export default function SessionHostPage() {
 
   // Real participant counts
   const totalParticipants = sessionData.playerCount ?? sessionData.playerRoster?.length ?? 0;
-  const maxCapacity = sessionData.game?.maxPlayers || sessionData.currentGame?.maxPlayers || 50;
+  const maxCapacity = sessionData.game?.maxPlayers || sessionData.currentGame?.maxPlayers || 200;
   const totalTeams = sessionData.teamCount ?? sessionData.teamRoster?.teams?.length ?? 0;
   const totalAnswers = sessionData.answersCount ?? 0;
   const onlineConnections = sessionData.playerRoster?.filter((p: any) => p.connected).length ?? totalParticipants;

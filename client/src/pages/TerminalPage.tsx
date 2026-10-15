@@ -50,8 +50,12 @@ export default function TerminalPage() {
         if (isMounted) {
           setWorkspace(res.data);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to load student workspace telemetry:', err);
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          logout();
+          return;
+        }
       } finally {
         if (isMounted) {
           setLoading(false);

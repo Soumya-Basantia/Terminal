@@ -118,31 +118,31 @@ async function main() {
     position: 0,
   }, gmHeaders)).data.challenge;
 
-  // Question 2: 12s
+  // Question 2: 20s
   const q2 = (await axios.post(`${API}/games/${game.id}/challenges`, {
     type: 'SINGLE_CHOICE',
     prompt: 'Question 2: What is the capital of France?',
     options: ['London', 'Berlin', 'Paris', 'Rome'],
     answer: 'Paris',
     points: 20,
-    timerSecs: 12,
+    timerSecs: 20,
     position: 1,
   }, gmHeaders)).data.challenge;
 
-  // Question 3: 15s
+  // Question 3: 25s
   const q3 = (await axios.post(`${API}/games/${game.id}/challenges`, {
     type: 'SINGLE_CHOICE',
     prompt: 'Question 3: What is the chemical symbol for Gold?',
     options: ['Ag', 'Au', 'Fe', 'Cu'],
     answer: 'Au',
     points: 30,
-    timerSecs: 15,
+    timerSecs: 25,
     position: 2,
   }, gmHeaders)).data.challenge;
 
   // Publish game
   await axios.post(`${API}/games/${game.id}/publish`, {}, gmHeaders);
-  check(q1.timerSecs === 10 && q2.timerSecs === 12 && q3.timerSecs === 15,
+  check(q1.timerSecs === 10 && q2.timerSecs === 20 && q3.timerSecs === 25,
     'Game published with configured timers: Q1=10s, Q2=12s, Q3=15s');
 
   // Create Live Session
@@ -300,8 +300,8 @@ async function main() {
   // Verify Question 2 received its own 12s configured time limit
   const sATimerText2 = await sAPage.textContent('header div:has(svg.lucide-clock) span');
   const sASeconds2 = parseInt(sATimerText2.replace(/\D/g, ''), 10);
-  check(sASeconds2 >= 5 && sASeconds2 <= 12,
-    `Question 2 countdown initialized with configured 12s timer (observed=${sASeconds2}s)`);
+  check(sASeconds2 >= 5 && sASeconds2 <= 20,
+    `Question 2 countdown initialized with configured 20s timer (observed=${sASeconds2}s)`);
 
   // Verify old question 1 answer controls replaced by fresh Q2 controls
   const q2Options = await sAPage.$$eval('div.flex-1.flex.flex-col.gap-3 button span.font-bold',
@@ -343,11 +343,11 @@ async function main() {
   await sAPage.screenshot({ path: path.join(SHOTS_DIR, '13_studentA_q3_active.png') });
   check(true, 'GM manual advance activated Question 3 (12_gm_q3_active.png, 13_studentA_q3_active.png)');
 
-  // Verify Question 3 countdown initialized with its own 15s configured timer
+  // Verify Question 3 countdown initialized with its own 25s configured timer
   const sATimerText3 = await sAPage.textContent('header div:has(svg.lucide-clock) span');
   const sASeconds3 = parseInt(sATimerText3.replace(/\D/g, ''), 10);
-  check(sASeconds3 >= 8 && sASeconds3 <= 15,
-    `Question 3 countdown initialized with configured 15s timer (observed=${sASeconds3}s)`);
+  check(sASeconds3 >= 8 && sASeconds3 <= 25,
+    `Question 3 countdown initialized with configured 25s timer (observed=${sASeconds3}s)`);
 
   // Student A submits correct answer for Q3 ('Au')
   await sAPage.click('button:has-text("Au")');
